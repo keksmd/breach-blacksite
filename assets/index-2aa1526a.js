@@ -24181,7 +24181,27 @@ const Oe = [
     fov: 52,
   },
 ];
-const HEADSHOT_LETHAL_DAMAGE = 1e4,
+const KNOCKBACK_IMPULSE_PER_DAMAGE = 0.085,
+  KNOCKBACK_IMPULSE_CAP = 13,
+  SHOTGUN_KNOCKBACK_BOOST = 2.4,
+  CORPSE_LAUNCH_SCALE = 3.4,
+  CORPSE_LAUNCH_LIFT = 3.1,
+  CORPSE_GRAVITY = 13,
+  CORPSE_BOUNCE = 0.34,
+  CORPSE_SPIN = 5.5,
+  BLOOD_DARK = 6032139,
+  BLOOD_BRIGHT = 11541010,
+  MELEE_DAMAGE = 26,
+  MELEE_HEAVY_DAMAGE = 40,
+  MELEE_SWING_TIME = 0.36,
+  SCREAMER_SPEED = 7.4,
+  SCREAMER_HP = 70,
+  SCREAMER_FUSE_MIN = 11,
+  SCREAMER_FUSE_MAX = 19,
+  SCREAMER_BLAST_RADIUS = 6.8,
+  SCREAMER_BLAST_DAMAGE = 70,
+  SCREAMER_SCORE = 250,
+  HEADSHOT_LETHAL_DAMAGE = 1e4,
   SHOTGUN_CLOSE_MULT = 2.15,
   SHOTGUN_FALLOFF_METERS = 13,
   SHOTGUN_SPLASH_RADIUS = 2.8,
@@ -24787,13 +24807,14 @@ const bv = {
     skin: ae(11702642, "cloth", 0.9, 0),
     officer: ae(1778739, "cloth", 0.9, 0.02),
     gold: ae(13214247, "metal", 0.38, 0.75),
+    blood: ae(6033675, "cloth", 0.62, 0.05),
     visor: new Nu({ color: 1584689, metalness: 0.6, roughness: 0.12, clearcoat: 1 }),
     red: new tn({ color: 16730156, toneMapped: !1 }),
     eye: new tn({ color: 16755300, toneMapped: !1 }),
   },
   zo = new Map(),
   ua = new Map();
-function wv(i, t, rangedVariant = 0) {
+function wv(i, t, rangedVariant = 0, headless = !1) {
   const e = new Me(),
     n = new Me();
   ((n.name = "torso"), e.add(n));
@@ -25041,7 +25062,14 @@ function wv(i, t, rangedVariant = 0) {
       a(S, "strap", 0, -0.216, 0, 0.06, 0.034, "y"),
       Re(S, r.rubber, 0, -0.273, 0.007, 0.053, 0.073, 0.05));
     for (let v = 0; v < 4; v++) Re(S, r.carrier, -0.034 + v * 0.022, -0.313, 0.016, 0.011, 0.032, 0.019);
-    (E.rotation.set(-0.42, 0, d * 0.1), S.rotation.set(-0.91, 0, d === -1 ? 0.52 : -0.06));
+    (d === 1 &&
+      !t &&
+      (s(S, "metal", 0.012, -0.352, 0.126, 0.011, 0.03, 0.145),
+        s(S, "metal", 0.012, -0.352, 0.256, 0.011, 0.016, 0.032),
+        s(S, "rubber", 0.012, -0.352, -0.032, 0.019, 0.032, 0.058),
+        s(S, "armor", 0.012, -0.352, 0.008, 0.028, 0.036, 0.012)),
+      E.rotation.set(-0.42, 0, d * 0.1),
+      S.rotation.set(-0.91, 0, d === -1 ? 0.52 : -0.06));
   }
   const g = new Me();
   (g.position.set(0.115, 1.12, 0.33),
@@ -25093,6 +25121,12 @@ function wv(i, t, rangedVariant = 0) {
     for (let d of [-1, 1]) Re(n, r.armor, d * 0.29, 1.446, 0.015, 0.15, 0.1, 0.16);
     (s(n, "armor", 0, 0.987, 0.29, 0.36, 0.12, 0.04), s(l, "armor", 0, -0.154, 0.15, 0.16, 0.05, 0.055));
   }
+  if (headless) {
+    (l.scale.setScalar(1e-4),
+      s(n, "blood", 0, 1.6, 0, 0.088, 0.075, 0.088),
+      s(n, "blood", 0, 1.665, 0, 0.062, 0.02, 0.062),
+      s(n, "red", 0, 1.688, 0, 0.05, 0.006, 0.05));
+  }
   return (
     [l, ...u, ...h, ...f, ...m, n].forEach(vi),
     e.traverse((d) => {
@@ -25101,9 +25135,9 @@ function wv(i, t, rangedVariant = 0) {
     e
   );
 }
-function Av(i = !1, t = !1) {
-  const e = i ? "heavy" : t ? (Math.random() < 0.5 ? "ranged" : "ranged-dmr") : "assault";
-  zo.has(e) || zo.set(e, wv(i, t, e === "ranged-dmr" ? 1 : 0));
+function Av(i = !1, t = !1, screamer = !1) {
+  const e = screamer ? "screamer" : i ? "heavy" : t ? (Math.random() < 0.5 ? "ranged" : "ranged-dmr") : "assault";
+  zo.has(e) || zo.set(e, wv(i, t, e === "ranged-dmr" ? 1 : 0, screamer));
   const n = zo.get(e).clone(!0);
   n.userData.enemyKind = e;
   const r = [];
@@ -25131,7 +25165,14 @@ function Rv(i, t, e, n) {
     let c = i.phase + l * Math.PI;
     ((i.knees[l].rotation.x = e ? Math.max(0, -Math.sin(c)) * 0.85 + 0.12 : 0.07),
       (i.legs[l].rotation.z = l === 0 ? -0.025 : 0.025),
-      (i.arms[l].rotation.x = n && l === 1 ? -1.5 : -0.42 + r * 0.03),
+      (i.arms[l].rotation.x =
+        l === 1 && i.melee > 0
+          ? -2.5 + (1 - i.melee / MELEE_SWING_TIME) * 3.4
+          : n && l === 1
+            ? -1.5
+            : -0.42 + r * 0.03),
+      (i.arms[l].rotation.z =
+        l === 1 && i.melee > 0 ? -0.6 * Math.sin((i.melee / MELEE_SWING_TIME) * Math.PI) : l === 0 ? -0.1 : 0.1),
       (i.elbows[l].rotation.x = -0.91 + Math.sin(i.phase + 1) * 0.025));
   }
   i.body.position.y = e ? Math.cos(i.phase * 2) * 0.021 : Math.sin(i.phase) * 0.008;
@@ -25143,7 +25184,7 @@ function Rv(i, t, e, n) {
     (i.hitPitchVel = a.v),
     (i.hitRoll = o.x),
     (i.hitRollVel = o.v),
-    (i.body.rotation.x = (e ? 0.06 : 0) + a.x),
+    (i.body.rotation.x = (e ? 0.06 : 0) + a.x - (i.melee > 0 ? 0.25 * Math.sin((i.melee / MELEE_SWING_TIME) * Math.PI) : 0)),
     (i.body.rotation.z = r * 0.023 + o.x),
     (i.head.rotation.y = r * -0.04 - o.x * 0.6),
     (i.head.rotation.x = -0.035 + a.x * (i.hitHead ? 1.8 : 0.4)));
@@ -25243,6 +25284,23 @@ class Pv {
       this.tone(1600, 500, 0.025, 0.09, "square"),
       t === 1 && (this.burst(0.09, 0.16, 1900, 0.34), this.tone(360, 120, 0.05, 0.08, "sawtooth", 0.4)));
   }
+  scream() {
+    (this.tone(880, 1650, 0.42, 0.11, "sawtooth"),
+      this.tone(1320, 720, 0.5, 0.07, "square", 0.05),
+      this.burst(0.4, 0.045, 3200, 0.02));
+  }
+  explosion() {
+    (this.burst(0.9, 0.5, 900),
+      this.tone(160, 32, 0.75, 0.42, "square"),
+      this.tone(70, 24, 1.1, 0.3),
+      this.burst(1.4, 0.18, 380, 0.06));
+  }
+  gore(t = 1) {
+    (this.burst(0.16, 0.16 * t, 720), this.tone(120, 44, 0.16, 0.13 * t, "square"));
+  }
+  knife() {
+    (this.tone(2300, 780, 0.09, 0.09, "sawtooth"), this.burst(0.07, 0.07, 5200));
+  }
   enemyShot(t = 0, e = 12) {
     const n = rn(1 - e / 40, 0.25, 1);
     (this.burst(0.07, 0.17 * n, t ? 2400 : 3300),
@@ -25320,7 +25378,7 @@ class Dv {
   }
   burst(t, e, n = "wall", r = 1) {
     const s = n === "muzzle" ? 3 : Math.round(5 + r * 3),
-      a = new Ot(n === "armor" ? 9870481 : n === "body" ? 9208946 : n === "muzzle" ? 11449258 : 12104354);
+      a = new Ot(n === "armor" ? 9870481 : n === "body" ? BLOOD_DARK : n === "muzzle" ? 11449258 : 12104354);
     for (let o = 0; o < s; o++) {
       const l = this.cursor++ % Dn,
         c = l * 3;
@@ -25514,6 +25572,94 @@ function Lv(i, t, e = !1, n = !1) {
   };
   return (Je.push(s), xs(new D(i, 0.2, t), 12, 16761973, 1.5), s);
 }
+function spawnScreamer() {
+  let i = Gh.filter(([o, l]) => Math.hypot(o - k.pos.x, l - k.pos.z) > 12);
+  i.length || (i = Gh);
+  const t = i[Math.floor(Math.random() * i.length)],
+    e = t[0] + Pe(-1, 1),
+    n = t[1] + Pe(-1, 1);
+  if (mc(e, n)) return null;
+  const r = Av(!1, !1, !0);
+  (r.root.position.set(e, 0, n), Se.add(r.root));
+  const a = {
+    ...r,
+    hp: SCREAMER_HP,
+    maxHp: SCREAMER_HP,
+    speed: SCREAMER_SPEED,
+    heavy: !1,
+    ranged: !1,
+    screamer: !0,
+    fuse: Pe(SCREAMER_FUSE_MIN, SCREAMER_FUSE_MAX),
+    screamTimer: 0,
+    wander: new D(Pe(-30, 30), 0, Pe(-30, 30)),
+    phase: Pe(0, 6),
+    attack: 0,
+    stagger: 0,
+    spawn: 0.5,
+    alive: !0,
+  };
+  return (
+    Je.push(a),
+    xs(new D(e, 1.6, n), 16, BLOOD_BRIGHT, 2),
+    Ue.scream(),
+    _c("SCREAMER LOOSE", "UNSTABLE HOSTILE — DO NOT HUG", 2.6),
+    a
+  );
+}
+function detonateScreamer(i, t) {
+  ((i.alive = !1), Se.remove(i.root));
+  const e = i.root.position.clone().setY(1);
+  (bloodSpray(e, new D(0, 1, 0), 3.4),
+    xs(e, 40, BLOOD_BRIGHT, 6, 0.6, 0.12),
+    xs(e, 26, 16761718, 5, 0.5, 0.1),
+    Rr.burst(e, new D(0, 1, 0), "body", 3),
+    spillBlood(i.root.position, 2.6),
+    spillBlood(i.root.position, 1.9),
+    Ue.explosion());
+  for (const n of Je) {
+    if (!n.alive || n === i) continue;
+    const r = n.root.position.distanceTo(i.root.position);
+    if (r > SCREAMER_BLAST_RADIUS) continue;
+    const s = SCREAMER_BLAST_DAMAGE * (1 - r / SCREAMER_BLAST_RADIUS),
+      a = n.root.position.clone().sub(i.root.position).setY(0).normalize();
+    ((n.hp -= s),
+      (n.stagger = Math.max(n.stagger, 0.4)),
+      (n.knockback = a.multiplyScalar(9 / (n.heavy ? 1.8 : 1))),
+      bloodSpray(n.root.position.clone().setY(1.1), a, 1.2),
+      n.hp <= 0 && (n.screamer ? detonateScreamer(n, t) : Gv(n, !1, a)));
+  }
+  const n = k.pos.distanceTo(i.root.position);
+  (n < SCREAMER_BLAST_RADIUS && Xh(SCREAMER_BLAST_DAMAGE * (1 - n / SCREAMER_BLAST_RADIUS) * 0.6),
+    t && ((hi += SCREAMER_SCORE), Ja++),
+    Xn());
+}
+function updateScreamer(i, t) {
+  ((i.fuse -= t), (i.screamTimer -= t), i.screamTimer <= 0 && ((i.screamTimer = Pe(0.9, 1.6)), Ue.scream()));
+  const e = i.root.position,
+    n = k.pos.distanceTo(e);
+  i.repick = (i.repick || 0) - t;
+  let r = i.wander.x - e.x,
+    s = i.wander.z - e.z,
+    a = Math.hypot(r, s);
+  if (a < 1.6 || i.repick < 0) {
+    (i.wander.set(Pe(-30, 30), 0, Pe(-30, 30)),
+      (i.repick = Pe(2.5, 5)),
+      (r = i.wander.x - e.x),
+      (s = i.wander.z - e.z),
+      (a = Math.hypot(r, s) || 1));
+  }
+  if (n < 7) {
+    const o = (e.x - k.pos.x) / (n || 1),
+      l = (e.z - k.pos.z) / (n || 1);
+    ((r = r / a + o * 1.6), (s = s / a + l * 1.6), (a = Math.hypot(r, s) || 1));
+  }
+  ((i.phase += t * i.speed * 3.4),
+    Ba(e, (r / a) * i.speed * t, (s / a) * i.speed * t, 0.32),
+    (i.root.rotation.y = Math.atan2(r, s)),
+    Rv(i, t, !0, !1),
+    Math.random() < t * 6 && xs(e.clone().setY(1.62), 1, BLOOD_BRIGHT, 0.7, 0.4, 0.06),
+    i.fuse <= 0 && detonateScreamer(i, !1));
+}
 const wi = 1100,
   ni = new Float32Array(wi * 3),
   Ea = new Float32Array(wi * 3),
@@ -25594,6 +25740,29 @@ function Bv(i, t) {
     Se.add(e),
     _s.push(e),
     _s.length > 70 && Se.remove(_s.shift()));
+}
+const BLOOD_DECAL_GEOMETRY = new Ca(1, 14),
+  BLOOD_DECAL_MATERIAL = new tn({
+    color: BLOOD_DARK,
+    transparent: !0,
+    opacity: 0.82,
+    depthWrite: !1,
+    polygonOffset: !0,
+    polygonOffsetFactor: -3,
+  });
+function spillBlood(i, t = 1) {
+  const e = new ee(BLOOD_DECAL_GEOMETRY, BLOOD_DECAL_MATERIAL);
+  (e.position.set(i.x + Pe(-0.2, 0.2), 0.015, i.z + Pe(-0.2, 0.2)),
+    (e.rotation.x = -Math.PI / 2),
+    (e.rotation.z = Pe(0, 6)),
+    e.scale.set(t * Pe(0.5, 0.85), t * Pe(0.5, 0.85), 1),
+    Se.add(e),
+    _s.push(e),
+    _s.length > 70 && Se.remove(_s.shift()));
+}
+function bloodSpray(i, t, e = 1) {
+  (xs(i, Math.round(9 * e), BLOOD_BRIGHT, 2.6 * e, 0.42, 0.085, t.clone().multiplyScalar(2.4)),
+    xs(i, Math.round(6 * e), BLOOD_DARK, 1.7 * e, 0.55, 0.11));
 }
 const ge = 51,
   qr = 1.4,
@@ -25702,6 +25871,7 @@ function nf() {
   ),
     Ue.wave(),
     Xn());
+  spawnScreamer();
 }
 function rf(i) {
   i === Ut ||
@@ -25788,7 +25958,8 @@ function Vv() {
       ((d.damage += _),
         (d.head ||= m),
         e.set(u, d),
-        xs(f, m ? 11 : 7, m ? 16763270 : 13080420, 2, 0.32, 0.075, _r.clone().multiplyScalar(2)));
+        xs(f, m ? 16 : 9, m ? BLOOD_BRIGHT : BLOOD_DARK, m ? 3.4 : 2.2, 0.34, m ? 0.1 : 0.08, _r.clone().multiplyScalar(2.2)),
+        m && xs(f, 9, BLOOD_DARK, 2.2, 0.5, 0.12));
     } else if (c && (xs(f, Ut === 1 ? 3 : 8, 15059342, 2, 0.35, 0.065), o === 0)) {
       const g = c.face.normal.clone().transformDirection(c.object.matrixWorld);
       (Bv(f, g), Rr.burst(f, g, "wall", Ut === 1 ? 1.6 : 1));
@@ -25801,8 +25972,16 @@ function Vv() {
       (o.hitPitchVel = (o.hitPitchVel || 0) - (l.head ? 2.6 : 1.7) * (Ut === 0 ? 1 : 1.5)),
       (o.hitRollVel = (o.hitRollVel || 0) + Pe(-1.6, 1.6)),
       (o.hitHead = l.head),
-      (o.knockback = l.direction.clone().multiplyScalar(Math.min(2.8, l.damage * 0.015) / (o.heavy ? 1.8 : 1))),
+      (o.knockback = l.direction
+        .clone()
+        .multiplyScalar(
+          (Math.min(KNOCKBACK_IMPULSE_CAP, l.damage * KNOCKBACK_IMPULSE_PER_DAMAGE) *
+            (Ut === 1 ? SHOTGUN_KNOCKBACK_BOOST : 1)) /
+            (o.heavy ? 1.9 : 1),
+        )),
       Rr.burst(l.point, l.direction.clone().negate(), o.heavy ? "armor" : "body", Ut === 0 ? 0.8 : 1.6),
+      bloodSpray(l.point, l.direction.clone().negate(), l.head ? 1.6 : 0.8),
+      spillBlood(o.root.position, 0.55),
       o.hp <= 0 && (Gv(o, l.head, l.direction), (s = !0)));
   if (Ut === 1 && e.size)
     for (const [o, l] of e)
@@ -25826,6 +26005,10 @@ function Vv() {
   (xs(a, 1, 13347683, 1, 0.65, 0.045, new D(2, 1, 0).applyQuaternion(Qt.quaternion)), Xn());
 }
 function Gv(i, t, e) {
+  if (i.screamer) {
+    detonateScreamer(i, !0);
+    return;
+  }
   ((i.alive = !1), Ja++, Fa++, (yr = sn - zl < 2.2 ? yr + 1 : 1), (zl = sn));
   const r = (t ? 150 : 100) * (i.heavy ? 2 : 1) + Math.max(0, yr - 1) * 25;
   hi += r;
@@ -25837,12 +26020,23 @@ function Gv(i, t, e) {
   )
     Et("killfeed").lastChild.remove();
   (setTimeout(() => s.remove(), 3100),
+    (t && (i.head.scale.setScalar(1e-4), bloodSpray(i.root.position.clone().setY(1.72), e.clone(), 3), Ue.gore(1))),
+    bloodSpray(i.root.position.clone().setY(1.1), e.clone(), t ? 1.4 : 1),
+    spillBlood(i.root.position, t ? 2.1 : 1.4),
     li.push({
       ...i,
       life: 4,
       rot: Pe(-0.4, 0.4),
       fall: 0,
-      velocity: e.clone().multiplyScalar((Ut === 0 ? 1.1 : 2.8) / (i.heavy ? 1.6 : 1)),
+      headless: t,
+      velocity: e
+        .clone()
+        .multiplyScalar((CORPSE_LAUNCH_SCALE * (Ut === 1 ? 2.2 : Ut === 0 ? 0.85 : 1.1) * (t ? 1.35 : 1)) / (i.heavy ? 1.7 : 1)),
+      velocityY: (CORPSE_LAUNCH_LIFT * (Ut === 1 ? 1.6 : 1) * (t ? 1.4 : 1)) / (i.heavy ? 1.7 : 1),
+      spinX: Pe(-CORPSE_SPIN, CORPSE_SPIN) * (t ? 1.8 : 1),
+      spinZ: Pe(-CORPSE_SPIN, CORPSE_SPIN),
+      tumbleX: 0,
+      tumbleZ: 0,
     }),
     (Math.random() < 0.32 || (k.health < 40 && Math.random() < 0.5)) &&
       Wv(i.root.position, k.health < 65 && Math.random() < 0.55 ? "health" : "ammo"),
@@ -26318,7 +26512,11 @@ function Zv(i) {
       ((e.spawn -= i), e.root.scale.setScalar((e.heavy ? 1.1 : 1) * rn(1 - e.spawn / 0.5, 0.1, 1)));
       continue;
     }
-    ((e.stagger = Math.max(0, e.stagger - i)), (e.attack -= i));
+    ((e.stagger = Math.max(0, e.stagger - i)), (e.attack -= i), (e.melee = Math.max(0, (e.melee || 0) - i)));
+    if (e.screamer) {
+      updateScreamer(e, i);
+      continue;
+    }
     const n = e.root.position,
       r = k.pos.x - n.x,
       s = k.pos.z - n.z,
@@ -26376,13 +26574,16 @@ function Zv(i) {
       (a > 1.45 && !m && (Ba(n, (o + h) * f * i, (l + u) * f * i, e.heavy ? 0.45 : 0.35), (e.phase += i * f * 2.7)),
       e.knockback &&
         (Ba(n, e.knockback.x * i, e.knockback.z * i, e.heavy ? 0.45 : 0.35),
-        e.knockback.multiplyScalar(Math.exp(-i * 10))),
+        e.knockback.multiplyScalar(Math.exp(-i * 4.5))),
       (e.root.rotation.y = Math.atan2(r, s)),
       Rv(e, i, a > 1.45 && !m, e.attack > 0.65 && a < 1.9),
       a < 1.9 &&
         Math.abs(k.pos.y - 1.7) < 1.5 &&
         e.attack <= 0 &&
-        (Xh(e.heavy ? 22 : 12), (e.attack = e.heavy ? 1.1 : 0.8), (e.arms[1].rotation.x = -1.9)),
+        (Xh(e.heavy ? MELEE_HEAVY_DAMAGE : MELEE_DAMAGE),
+          (e.attack = e.heavy ? 1.1 : 0.8),
+          (e.melee = MELEE_SWING_TIME),
+          Ue.knife()),
       e.ranged && c && a < 24 && a > 3)
     ) {
       if (e.aim > 0) {
@@ -26437,16 +26638,34 @@ function qh(i) {
   for (const t of As) t.life > 0 && ((t.life -= i), t.life <= 0 && (t.line.visible = !1));
   for (let t = li.length - 1; t >= 0; t--) {
     const e = li[t];
-    ((e.life -= i),
-      (e.fall = Tn(e.fall, Math.PI / 2, 8, i)),
-      (e.root.rotation.x = e.fall),
-      (e.root.rotation.z = e.rot * e.fall),
+    e.life -= i;
+    ((e.velocityY -= CORPSE_GRAVITY * i), (e.root.position.y += e.velocityY * i));
+    if (e.root.position.y <= 0) {
+      ((e.root.position.y = 0),
+        e.velocityY < -2.2 && (spillBlood(e.root.position, 1.1), Ue.gore(0.45)),
+        (e.velocityY = e.velocityY < -1.1 ? -e.velocityY * CORPSE_BOUNCE : 0),
+        e.velocity.multiplyScalar(0.5),
+        (e.spinX *= 0.35),
+        (e.spinZ *= 0.35));
+    }
+    const airborne = e.root.position.y > 0.03;
+    ((e.fall = Tn(e.fall, Math.PI / 2, airborne ? 2.4 : 8, i)),
+      (e.tumbleX += e.spinX * i),
+      (e.tumbleZ += e.spinZ * i),
+      (e.spinX *= Math.exp(-i * (airborne ? 0.9 : 6))),
+      (e.spinZ *= Math.exp(-i * (airborne ? 0.9 : 6))),
+      (e.root.rotation.x = e.fall + e.tumbleX),
+      (e.root.rotation.z = e.rot * e.fall + e.tumbleZ),
       Ba(e.root.position, e.velocity.x * i, e.velocity.z * i, 0.3),
-      e.velocity.multiplyScalar(Math.exp(-i * 5)));
+      e.velocity.multiplyScalar(Math.exp(-i * (airborne ? 1.1 : 6))),
+      airborne &&
+        Math.random() < i * 22 &&
+        xs(e.root.position.clone().setY(0.9 + Math.random()), 1, e.headless ? BLOOD_BRIGHT : BLOOD_DARK, 0.6, 0.5, 0.07),
+      !airborne && Math.random() < i * 1.6 && spillBlood(e.root.position, 0.8));
     for (let n = 0; n < 2; n++)
       ((e.knees[n].rotation.x = Tn(e.knees[n].rotation.x, 0.65 + n * 0.4, 7, i)),
         (e.arms[n].rotation.z = Tn(e.arms[n].rotation.z, n === 0 ? -0.7 : 0.6, 6, i)));
-    ((e.root.position.y = e.life < 1 ? -(1 - e.life) * 2 : 0), e.life <= 0 && (Se.remove(e.root), li.splice(t, 1)));
+    (e.life < 1 && (e.root.position.y = -(1 - e.life) * 2), e.life <= 0 && (Se.remove(e.root), li.splice(t, 1)));
   }
   for (let t = yi.length - 1; t >= 0; t--) {
     const e = yi[t];
@@ -26575,6 +26794,7 @@ window.__BREACH__ = {
         ranged: !!i.ranged,
         aim: i.aim || 0,
         attack: i.attack || 0,
+        screamer: !!i.screamer,
       })),
     };
   },
