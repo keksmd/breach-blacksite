@@ -1,6 +1,6 @@
 # BREACH — Blacksite (fork)
 
-**Live:** (not deployed yet)
+**Live:** https://keksmd.github.io/breach-blacksite/
 
 Fork of `alesha-pro/bench-portal @ 2fa5c82` → `games/breach-blacksite-astra`.
 
