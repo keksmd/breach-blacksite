@@ -25488,9 +25488,7 @@ let Ut = 0,
   recoilSettle = 0,
   retryWave = 1,
   leanAmount = 0,
-  cursorNX = 0,
-  cursorNY = 0,
-  trackpadAim = !1;
+  adsToggleMode = !0;
 try {
   Pr = Number(localStorage.getItem("breach-best") || 0);
 } catch {}
@@ -25959,10 +25957,6 @@ function af() {
     _c("WEAPONS FREE", "CURSOR AIM / ARROW KEYS ALSO TURN", 3));
 }
 async function xc() {
-  if (trackpadAim) {
-    af();
-    return;
-  }
   Yn = !1;
   try {
     await ja.requestPointerLock();
@@ -26019,9 +26013,8 @@ for (const i of document.querySelectorAll(".weapon-card"))
 Et("settings-open").onclick = () => Et("settings").classList.remove("hidden");
 Et("settings-close").onclick = () => Et("settings").classList.add("hidden");
 Et("sensitivity").oninput = (i) => (ju = +i.target.value);
-Et("trackpad").onchange = (i) => {
-  ((trackpadAim = i.target.checked),
-    trackpadAim ? de === "playing" && (document.exitPointerLock?.(), af()) : de === "playing" && xc());
+Et("ads-mode").onchange = (i) => {
+  ((adsToggleMode = i.target.value === "toggle"), (Ei = !1));
 };
 Et("volume").oninput = (i) => Ue.setVolume(+i.target.value);
 Et("quality").onchange = (i) => {
@@ -26044,16 +26037,15 @@ ja.addEventListener("click", () => {
   de === "playing" && !ci && !Yn && xc();
 });
 document.addEventListener("mousemove", (i) => {
-  ((cursorNX = (i.clientX / innerWidth) * 2 - 1), (cursorNY = (i.clientY / innerHeight) * 2 - 1));
   if (de !== "playing" || (!ci && !Yn)) return;
   const t = 0.00185 * ju * Hi(1, 0.62, On);
   ((k.yaw -= i.movementX * t), (k.pitch = rn(k.pitch - i.movementY * t, -1.42, 1.42)));
 });
 document.addEventListener("mousedown", (i) => {
-  de !== "playing" || (!ci && !Yn) || (i.button === 0 && ((bi = !0), (Xr = !1)), i.button === 2 && (Ei = !0));
+  de !== "playing" || (!ci && !Yn) || (i.button === 0 && ((bi = !0), (Xr = !1)), i.button === 2 && (Ei = adsToggleMode ? !Ei : !0));
 });
 document.addEventListener("mouseup", (i) => {
-  (i.button === 0 && ((bi = !1), (Xr = !1)), i.button === 2 && (Ei = !1));
+  (i.button === 0 && ((bi = !1), (Xr = !1)), i.button === 2 && !adsToggleMode && (Ei = !1));
 });
 document.addEventListener("contextmenu", (i) => i.preventDefault());
 document.addEventListener("keydown", (i) => {
@@ -26079,6 +26071,7 @@ document.addEventListener("keydown", (i) => {
     Fe.add(i.code),
     !i.repeat &&
       (i.code === "KeyR" && sf(),
+      (i.code === "KeyV" || i.code === "ShiftRight") && (Ei = !Ei),
       i.code === "KeyF" && Ce <= 0 && (Wn = 2.6),
       /^Digit[1234]$/.test(i.code) && rf(Number(i.code.slice(-1)) - 1),
       i.code === "Space" &&
@@ -26157,11 +26150,6 @@ function Yv(i) {
   const leanRightX = Math.cos(k.yaw),
     leanRightZ = -Math.sin(k.yaw);
   let leanShift = leanAmount * LEAN_OFFSET;
-  if (Yn) {
-    const u = Math.abs(cursorNX) > 0.55 ? (Math.sign(cursorNX) * (Math.abs(cursorNX) - 0.55)) / 0.45 : 0,
-      m = Math.abs(cursorNY) > 0.55 ? (Math.sign(cursorNY) * (Math.abs(cursorNY) - 0.55)) / 0.45 : 0;
-    ((k.yaw -= u * i * 2.6 * ju), (k.pitch = rn(k.pitch - m * i * 1.7 * ju, -1.42, 1.42)));
-  }
   leanShift &&
     mc(k.pos.x + leanRightX * leanShift * 1.3, k.pos.z + leanRightZ * leanShift * 1.3, 0.3) &&
     (leanShift *= 0.2);
