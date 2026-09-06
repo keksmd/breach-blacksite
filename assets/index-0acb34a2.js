@@ -25157,25 +25157,34 @@ function Av(i = !1, t = !1, screamer = !1) {
     }
   );
 }
-function Rv(i, t, e, n) {
+function Rv(i, t, e, n, sprint = !1) {
   const r = e ? Math.sin(i.phase) : 0,
-    s = i.heavy ? 0.36 : 0.48;
+    s = (i.heavy ? 0.36 : 0.48) * (sprint ? 1.75 : 1),
+    breathe = Math.sin(sn * (sprint ? 7.5 : 1.9) + i.phase * 0.35);
   ((i.legs[0].rotation.x = r * s), (i.legs[1].rotation.x = -r * s));
   for (let l = 0; l < 2; l++) {
     let c = i.phase + l * Math.PI;
-    ((i.knees[l].rotation.x = e ? Math.max(0, -Math.sin(c)) * 0.85 + 0.12 : 0.07),
+    ((i.knees[l].rotation.x = e ? Math.max(0, -Math.sin(c)) * (sprint ? 1.35 : 0.85) + 0.12 : 0.07),
       (i.legs[l].rotation.z = l === 0 ? -0.025 : 0.025),
       (i.arms[l].rotation.x =
         l === 1 && i.melee > 0
           ? -2.5 + (1 - i.melee / MELEE_SWING_TIME) * 3.4
           : n && l === 1
             ? -1.5
-            : -0.42 + r * 0.03),
+            : sprint
+              ? -0.95 + Math.sin(c) * 0.85
+              : -0.42 + r * 0.03 + breathe * 0.02),
       (i.arms[l].rotation.z =
-        l === 1 && i.melee > 0 ? -0.6 * Math.sin((i.melee / MELEE_SWING_TIME) * Math.PI) : l === 0 ? -0.1 : 0.1),
-      (i.elbows[l].rotation.x = -0.91 + Math.sin(i.phase + 1) * 0.025));
+        l === 1 && i.melee > 0
+          ? -0.6 * Math.sin((i.melee / MELEE_SWING_TIME) * Math.PI)
+          : sprint
+            ? (l === 0 ? -0.42 : 0.42) + Math.cos(c) * 0.12
+            : l === 0
+              ? -0.1
+              : 0.1),
+      (i.elbows[l].rotation.x = sprint ? -1.72 + Math.sin(c) * 0.35 : -0.91 + Math.sin(i.phase + 1) * 0.025));
   }
-  i.body.position.y = e ? Math.cos(i.phase * 2) * 0.021 : Math.sin(i.phase) * 0.008;
+  i.body.position.y = e ? Math.cos(i.phase * 2) * (sprint ? 0.055 : 0.021) : Math.sin(i.phase) * 0.008 + breathe * 0.004;
   const a = { x: i.hitPitch || 0, v: i.hitPitchVel || 0 },
     o = { x: i.hitRoll || 0, v: i.hitRollVel || 0 };
   (Ze(a, 0, 105, 11, t),
@@ -25184,10 +25193,14 @@ function Rv(i, t, e, n) {
     (i.hitPitchVel = a.v),
     (i.hitRoll = o.x),
     (i.hitRollVel = o.v),
-    (i.body.rotation.x = (e ? 0.06 : 0) + a.x - (i.melee > 0 ? 0.25 * Math.sin((i.melee / MELEE_SWING_TIME) * Math.PI) : 0)),
-    (i.body.rotation.z = r * 0.023 + o.x),
-    (i.head.rotation.y = r * -0.04 - o.x * 0.6),
-    (i.head.rotation.x = -0.035 + a.x * (i.hitHead ? 1.8 : 0.4)));
+    (i.body.rotation.x =
+      (e ? 0.06 : 0) +
+      (sprint ? 0.34 + Math.cos(i.phase * 2) * 0.05 : 0) +
+      a.x -
+      (i.melee > 0 ? 0.25 * Math.sin((i.melee / MELEE_SWING_TIME) * Math.PI) : 0)),
+    (i.body.rotation.z = r * (sprint ? 0.12 : 0.023) + o.x),
+    (i.head.rotation.y = r * (sprint ? -0.16 : -0.04) - o.x * 0.6 + (i.lookYaw || 0)),
+    (i.head.rotation.x = -0.035 + a.x * (i.hitHead ? 1.8 : 0.4) + (sprint ? -0.22 : 0)));
 }
 function Cv(i, t, e) {
   const n = new Map(),
@@ -25275,6 +25288,55 @@ class Pv {
       a.start(s, Math.random()),
       a.stop(s + t));
   }
+  sweepNoise(t, e, n, r, s = 0, a = "lowpass", o = 1) {
+    if (!this.ctx) return;
+    const l = this.ctx.currentTime + s,
+      c = this.ctx.createBufferSource(),
+      h = this.ctx.createGain(),
+      u = this.ctx.createBiquadFilter();
+    ((c.buffer = this.noise),
+      (u.type = a),
+      (u.Q.value = o),
+      u.frequency.setValueAtTime(n, l),
+      u.frequency.exponentialRampToValueAtTime(Math.max(60, r), l + t),
+      h.gain.setValueAtTime(1e-4, l),
+      h.gain.exponentialRampToValueAtTime(e, l + Math.min(0.014, t * 0.25)),
+      h.gain.exponentialRampToValueAtTime(1e-4, l + t),
+      c.connect(u),
+      u.connect(h),
+      h.connect(this.master),
+      c.start(l, Math.random()),
+      c.stop(l + t));
+  }
+  voice(t, e, n, r, s = 0, a = 7, o = 1500) {
+    if (!this.ctx) return;
+    const l = this.ctx.currentTime + s,
+      c = this.ctx.createGain(),
+      h = this.ctx.createBiquadFilter(),
+      u = this.ctx.createOscillator(),
+      f = this.ctx.createGain();
+    ((h.type = "bandpass"),
+      (h.frequency.value = o),
+      (h.Q.value = 1.3),
+      c.gain.setValueAtTime(1e-4, l),
+      c.gain.exponentialRampToValueAtTime(r, l + t * 0.14),
+      c.gain.setValueAtTime(r, l + t * 0.6),
+      c.gain.exponentialRampToValueAtTime(1e-4, l + t),
+      (u.frequency.value = a),
+      (f.gain.value = e * 0.055),
+      u.connect(f));
+    for (const m of [1, 1.006, 0.991]) {
+      const g = this.ctx.createOscillator();
+      ((g.type = "sawtooth"),
+        g.frequency.setValueAtTime(e * m, l),
+        g.frequency.exponentialRampToValueAtTime(Math.max(70, n * m), l + t),
+        f.connect(g.frequency),
+        g.connect(h),
+        g.start(l),
+        g.stop(l + t));
+    }
+    (h.connect(c), c.connect(this.master), u.start(l), u.stop(l + t));
+  }
   shot(t) {
     let e = [1, 1.8, 1.5, 0.78][t];
     (this.burst(0.12 * e, 0.55, 4e3),
@@ -25285,9 +25347,9 @@ class Pv {
       t === 1 && (this.burst(0.09, 0.16, 1900, 0.34), this.tone(360, 120, 0.05, 0.08, "sawtooth", 0.4)));
   }
   scream() {
-    (this.tone(880, 1650, 0.42, 0.11, "sawtooth"),
-      this.tone(1320, 720, 0.5, 0.07, "square", 0.05),
-      this.burst(0.4, 0.045, 3200, 0.02));
+    (this.voice(0.92, 640, 285, 0.08, 0, 12, 1750),
+      this.voice(0.7, 320, 150, 0.045, 0.06, 9, 900),
+      this.sweepNoise(0.85, 0.05, 2800, 620, 0.02, "bandpass", 0.7));
   }
   explosion() {
     (this.burst(0.9, 0.5, 900),
@@ -25296,24 +25358,26 @@ class Pv {
       this.burst(1.4, 0.18, 380, 0.06));
   }
   gore(t = 1) {
-    (this.burst(0.16, 0.16 * t, 720), this.tone(120, 44, 0.16, 0.13 * t, "square"));
+    (this.sweepNoise(0.22, 0.2 * t, 1500, 180),
+      this.sweepNoise(0.4, 0.09 * t, 520, 120, 0.05),
+      this.tone(105, 42, 0.18, 0.1 * t, "triangle"));
   }
   knife() {
-    (this.tone(2300, 780, 0.09, 0.09, "sawtooth"), this.burst(0.07, 0.07, 5200));
+    (this.sweepNoise(0.12, 0.15, 6800, 1100),
+      this.sweepNoise(0.18, 0.22, 1300, 210, 0.05),
+      this.tone(145, 58, 0.15, 0.09, "triangle", 0.05));
   }
   enemyShot(t = 0, e = 12) {
-    const n = rn(1 - e / 40, 0.25, 1);
-    (this.burst(0.07, 0.17 * n, t ? 2400 : 3300),
-      this.tone(t ? 190 : 300, 55, 0.12, 0.13 * n, "square"),
-      this.tone(t ? 88 : 125, 38, 0.17, 0.1 * n),
-      this.burst(0.3, 0.05 * n, 620, 0.03));
+    const n = rn(1 - e / 40, 0.22, 1);
+    (this.sweepNoise(0.085, 0.4 * n, t ? 5400 : 6400, t ? 620 : 1000),
+      this.tone(t ? 125 : 170, 46, 0.13, 0.17 * n, "triangle"),
+      this.tone(t ? 62 : 82, 30, 0.2, 0.11 * n),
+      this.sweepNoise(0.45, 0.085 * n, 950, 190, 0.04));
   }
   hit(t, e) {
-    (this.burst(0.105, 0.13, t ? 1700 : 800),
-      this.tone(t ? 190 : 130, 45, 0.12, 0.14, "triangle"),
-      this.tone(t ? 1600 : 950, t ? 2200 : 620, 0.075, 0.1, "triangle"),
-      this.burst(0.04, 0.08, 3500),
-      e && (this.tone(280, 80, 0.2, 0.12, "triangle"), this.tone(1100, 1700, 0.1, 0.08, "sine", 0.04)));
+    (this.sweepNoise(0.12, 0.26, t ? 2400 : 1100, t ? 420 : 170),
+      this.tone(t ? 160 : 118, 50, 0.11, 0.12, "triangle"),
+      e && (this.sweepNoise(0.24, 0.32, 3400, 280, 0.008), this.tone(230, 68, 0.2, 0.12, "triangle", 0.01)));
   }
   step(t) {
     (this.burst(0.065, t ? 0.055 : 0.03, 500), this.tone(65, 30, 0.08, 0.02));
@@ -25324,8 +25388,14 @@ class Pv {
       this.burst(0.08, 0.13, 3200, 0.65),
       this.burst(0.055, 0.17, 2200, 1.15));
   }
-  hurt() {
-    (this.burst(0.16, 0.17, 650), this.tone(90, 25, 0.25, 0.24));
+  hurt(t = 12) {
+    (this.sweepNoise(0.2, 0.32, 950, 130),
+      this.tone(82, 38, 0.3, 0.22),
+      this.voice(t > 22 ? 0.52 : 0.34, t > 22 ? 185 : 235, 105, 0.085, 0.02, 5, 1150),
+      t > 22 && this.tone(2400, 1900, 1.2, 0.03, "sine", 0.06));
+  }
+  heartbeat(t = 1) {
+    (this.tone(58, 34, 0.16, 0.16 * t, "sine"), this.tone(52, 30, 0.2, 0.12 * t, "sine", 0.19));
   }
   wave() {
     (this.tone(200, 210, 0.35, 0.12, "sine"),
@@ -25333,7 +25403,7 @@ class Pv {
       this.tone(450, 470, 0.6, 0.1, "sine", 0.3));
   }
   pickup() {
-    (this.tone(800, 1300, 0.12, 0.08), this.tone(1300, 1800, 0.15, 0.08, "sine", 0.1));
+    (this.sweepNoise(0.07, 0.12, 3200, 900), this.tone(420, 620, 0.11, 0.05, "sine", 0.02));
   }
 }
 const Dn = 180;
@@ -25634,30 +25704,52 @@ function detonateScreamer(i, t) {
     Xn());
 }
 function updateScreamer(i, t) {
-  ((i.fuse -= t), (i.screamTimer -= t), i.screamTimer <= 0 && ((i.screamTimer = Pe(0.9, 1.6)), Ue.scream()));
+  ((i.fuse -= t), (i.screamTimer -= t));
+  if (i.screamTimer <= 0) {
+    ((i.screamTimer = Pe(1.7, 3.2)), Ue.scream(), (i.screamFlash = 0.35));
+  }
+  i.screamFlash = Math.max(0, (i.screamFlash || 0) - t);
   const e = i.root.position,
     n = k.pos.distanceTo(e);
   i.repick = (i.repick || 0) - t;
   let r = i.wander.x - e.x,
     s = i.wander.z - e.z,
     a = Math.hypot(r, s);
-  if (a < 1.6 || i.repick < 0) {
-    (i.wander.set(Pe(-30, 30), 0, Pe(-30, 30)),
-      (i.repick = Pe(2.5, 5)),
+  if (a < 2.2 || i.repick < 0 || (i.stuck || 0) > 0.8) {
+    let o = 0;
+    do {
+      (i.wander.set(Pe(-30, 30), 0, Pe(-30, 30)), o++);
+    } while (mc(i.wander.x, i.wander.z) && o < 8);
+    ((i.repick = Pe(3.5, 6.5)),
+      (i.stuck = 0),
       (r = i.wander.x - e.x),
       (s = i.wander.z - e.z),
       (a = Math.hypot(r, s) || 1));
   }
-  if (n < 7) {
+  if (n < 8.5) {
     const o = (e.x - k.pos.x) / (n || 1),
       l = (e.z - k.pos.z) / (n || 1);
-    ((r = r / a + o * 1.6), (s = s / a + l * 1.6), (a = Math.hypot(r, s) || 1));
+    ((r = r / a + o * 2.2), (s = s / a + l * 2.2), (a = Math.hypot(r, s) || 1));
   }
-  ((i.phase += t * i.speed * 3.4),
-    Ba(e, (r / a) * i.speed * t, (s / a) * i.speed * t, 0.32),
-    (i.root.rotation.y = Math.atan2(r, s)),
-    Rv(i, t, !0, !1),
-    Math.random() < t * 6 && xs(e.clone().setY(1.62), 1, BLOOD_BRIGHT, 0.7, 0.4, 0.06),
+  const o = Math.atan2(r / a, s / a);
+  i.heading === void 0 && (i.heading = o);
+  i.heading += Math.atan2(Math.sin(o - i.heading), Math.cos(o - i.heading)) * Math.min(1, t * 6);
+  const l = Math.sin(i.heading),
+    c = Math.cos(i.heading),
+    h = i.speed * (1 + (i.fuse < 3 ? 0.35 : 0)) * (0.92 + Math.sin(sn * 5.3 + i.phase) * 0.08),
+    u = e.x,
+    f = e.z;
+  (Ba(e, l * h * t, c * h * t, 0.32),
+    (i.stuck = Math.hypot(e.x - u, e.z - f) < h * t * 0.45 ? (i.stuck || 0) + t : 0),
+    (i.phase += t * h * 3.1),
+    (i.root.rotation.y = i.heading + Math.sin(sn * 8.4 + i.phase * 0.5) * 0.13),
+    (i.lookYaw = Math.sin(sn * 6.1) * 0.35),
+    Rv(i, t, !0, !1, !0),
+    (i.body.rotation.z += Math.sin(sn * 9.1) * 0.09),
+    Math.random() < t * (12 + (i.screamFlash > 0 ? 40 : 0)) &&
+      xs(e.clone().setY(1.6), 1, i.screamFlash > 0 ? BLOOD_BRIGHT : BLOOD_DARK, 0.8, 0.45, 0.07, new D(Pe(-0.7, 0.7), Pe(1.4, 3), Pe(-0.7, 0.7))),
+    Math.random() < t * 2.4 && spillBlood(e, 0.35),
+    i.fuse < 2.4 && Math.random() < t * 9 && xs(e.clone().setY(1.2), 1, 16750899, 1.1, 0.3, 0.09),
     i.fuse <= 0 && detonateScreamer(i, !1));
 }
 const wi = 1100,
@@ -25741,24 +25833,59 @@ function Bv(i, t) {
     _s.push(e),
     _s.length > 70 && Se.remove(_s.shift()));
 }
-const BLOOD_DECAL_GEOMETRY = new Ca(1, 14),
-  BLOOD_DECAL_MATERIAL = new tn({
-    color: BLOOD_DARK,
-    transparent: !0,
-    opacity: 0.82,
-    depthWrite: !1,
-    polygonOffset: !0,
-    polygonOffsetFactor: -3,
-  });
-function spillBlood(i, t = 1) {
-  const e = new ee(BLOOD_DECAL_GEOMETRY, BLOOD_DECAL_MATERIAL);
-  (e.position.set(i.x + Pe(-0.2, 0.2), 0.015, i.z + Pe(-0.2, 0.2)),
-    (e.rotation.x = -Math.PI / 2),
-    (e.rotation.z = Pe(0, 6)),
-    e.scale.set(t * Pe(0.5, 0.85), t * Pe(0.5, 0.85), 1),
-    Se.add(e),
-    _s.push(e),
-    _s.length > 70 && Se.remove(_s.shift()));
+const BLOOD_DECAL_GEOMETRY = new Ca(1, 22),
+  BLOOD_DECAL_MATERIALS = [
+    new tn({ color: BLOOD_DARK, transparent: !0, opacity: 0.9, depthWrite: !1, polygonOffset: !0, polygonOffsetFactor: -3 }),
+    new tn({ color: 4325383, transparent: !0, opacity: 0.82, depthWrite: !1, polygonOffset: !0, polygonOffsetFactor: -3.4 }),
+    new tn({ color: 7278870, transparent: !0, opacity: 0.66, depthWrite: !1, polygonOffset: !0, polygonOffsetFactor: -3.8 }),
+  ],
+  BLOOD_POOL_CAP = 46;
+function bloodBlob(i, t, e, n, r, s, a) {
+  const o = new ee(BLOOD_DECAL_GEOMETRY, BLOOD_DECAL_MATERIALS[a]);
+  return (
+    o.position.set(t, Pe(0.012, 0.02), e),
+    (o.rotation.x = -Math.PI / 2),
+    (o.rotation.z = r),
+    o.scale.set(n, s, 1),
+    i.add(o),
+    o
+  );
+}
+function spillBlood(i, t = 1, e = null) {
+  const n = new Me(),
+    r = e ? Math.atan2(e.x, e.z) : Pe(0, 6.28),
+    s = e ? 1 : 0.35;
+  n.position.set(i.x, 0, i.z);
+  const a = 2 + Math.floor(Pe(2, 4.6));
+  for (let c = 0; c < a; c++) {
+    const h = Pe(0, 6.28),
+      u = Pe(0, 0.42 * t),
+      f = t * Pe(0.24, 0.52),
+      m = f * Pe(0.55, 1.35);
+    bloodBlob(n, Math.sin(h) * u, Math.cos(h) * u, f, Pe(0, 6.28), m, c === 0 ? 0 : 1);
+  }
+  const o = 5 + Math.floor(Pe(3, 9));
+  for (let c = 0; c < o; c++) {
+    const h = r + Pe(-0.85, 0.85) + (Math.random() < s ? 0 : Pe(-3.14, 3.14)),
+      u = Pe(0.35, 1.5) * t,
+      f = t * Pe(0.035, 0.11);
+    bloodBlob(n, Math.sin(h) * u, Math.cos(h) * u, f, h, f * Pe(1.4, 3.6), 2);
+  }
+  const l = e ? 2 + Math.floor(Pe(0, 2.4)) : 0;
+  for (let c = 0; c < l; c++) {
+    const h = r + Pe(-0.34, 0.34),
+      u = Pe(0.3, 0.95) * t;
+    bloodBlob(n, Math.sin(h) * u, Math.cos(h) * u, t * Pe(0.05, 0.1), h, t * Pe(0.3, 0.62), 1);
+  }
+  (Se.add(n), _s.push(n));
+  let c = 0;
+  for (const h of _s) if (h.isGroup) c++;
+  while (c > BLOOD_POOL_CAP) {
+    const h = _s.findIndex((u) => u.isGroup);
+    if (h < 0) break;
+    (Se.remove(_s[h]), _s.splice(h, 1), c--);
+  }
+  while (_s.length > 160) Se.remove(_s.shift());
 }
 function bloodSpray(i, t, e = 1) {
   (xs(i, Math.round(9 * e), BLOOD_BRIGHT, 2.6 * e, 0.42, 0.085, t.clone().multiplyScalar(2.4)),
@@ -25981,7 +26108,7 @@ function Vv() {
         )),
       Rr.burst(l.point, l.direction.clone().negate(), o.heavy ? "armor" : "body", Ut === 0 ? 0.8 : 1.6),
       bloodSpray(l.point, l.direction.clone().negate(), l.head ? 1.6 : 0.8),
-      spillBlood(o.root.position, 0.55),
+      spillBlood(o.root.position, 0.55, l.direction),
       o.hp <= 0 && (Gv(o, l.head, l.direction), (s = !0)));
   if (Ut === 1 && e.size)
     for (const [o, l] of e)
@@ -26022,7 +26149,7 @@ function Gv(i, t, e) {
   (setTimeout(() => s.remove(), 3100),
     (t && (i.head.scale.setScalar(1e-4), bloodSpray(i.root.position.clone().setY(1.72), e.clone(), 3), Ue.gore(1))),
     bloodSpray(i.root.position.clone().setY(1.1), e.clone(), t ? 1.4 : 1),
-    spillBlood(i.root.position, t ? 2.1 : 1.4),
+    spillBlood(i.root.position, t ? 2.1 : 1.4, e),
     li.push({
       ...i,
       life: 4,
@@ -26064,7 +26191,7 @@ function Xh(i) {
     (k.lastHurt = sn),
     (kn = Math.min(1, kn + 0.55)),
     (In += 0.02),
-    Ue.hurt(),
+    Ue.hurt(i),
     Xn(),
     k.health <= 0 && Xv());
 }
@@ -26103,7 +26230,9 @@ function Xn() {
     (Et("reserve").textContent = Cn[Ut]),
     (Et("weapon-name").textContent = Oe[Ut].name),
     (Et("fire-mode").textContent = Oe[Ut].type),
-    (Et("wave-progress").firstElementChild.style.width = (ms ? (Fa / ms) * 100 : 0) + "%"));
+    (Et("wave-progress").firstElementChild.style.width = (ms ? (Fa / ms) * 100 : 0) + "%"),
+    (Et("lowhp").style.opacity = k.health > 0 ? rn((46 - k.health) / 46, 0, 1) * 0.82 : 0),
+    Et("lowhp").classList.toggle("crit", k.health > 0 && k.health <= 24));
 }
 function qv() {
   for (const i of Je) Se.remove(i.root);
@@ -26576,7 +26705,8 @@ function Zv(i) {
         (Ba(n, e.knockback.x * i, e.knockback.z * i, e.heavy ? 0.45 : 0.35),
         e.knockback.multiplyScalar(Math.exp(-i * 4.5))),
       (e.root.rotation.y = Math.atan2(r, s)),
-      Rv(e, i, a > 1.45 && !m, e.attack > 0.65 && a < 1.9),
+      (e.lookYaw = rn(Math.atan2(Math.sin(Math.atan2(k.pos.x - n.x, k.pos.z - n.z) - e.root.rotation.y), Math.cos(Math.atan2(k.pos.x - n.x, k.pos.z - n.z) - e.root.rotation.y)), -0.7, 0.7)),
+      Rv(e, i, a > 1.45 && !m, e.attack > 0.65 && a < 1.9, !e.heavy && !e.ranged && a > 7 && e.speed > 3.2 && e.stagger <= 0),
       a < 1.9 &&
         Math.abs(k.pos.y - 1.7) < 1.5 &&
         e.attack <= 0 &&
@@ -26607,7 +26737,8 @@ function Zv(i) {
                 ),
               ),
             tf(g, w, !0),
-            xs(g, 5, 16760184, 1, 0.15, 0.09),
+            xs(g, 9, 16768443, 1.7, 0.12, 0.13),
+            xs(g, 5, 7566195, 0.9, 0.5, 0.16, new D(Pe(-0.4, 0.4), Pe(0.3, 1), Pe(-0.4, 0.4))),
             Ue.enemyShot(e.root.userData.enemyKind === "ranged-dmr" ? 1 : 0, a),
             p && Xh(e.root.userData.enemyKind === "ranged-dmr" ? RANGED_DMR_DAMAGE : RANGED_DAMAGE),
             (e.attack = Pe(RANGED_COOLDOWN_MIN, RANGED_COOLDOWN_MAX)));
@@ -26720,6 +26851,17 @@ addEventListener("resize", yc);
 let Wo = 0,
   fa = 0,
   lf = 0;
+let heartTimer = 0;
+function lowHpPulse(i) {
+  if (k.health > 34 || k.health <= 0) {
+    heartTimer = 0;
+    return;
+  }
+  heartTimer -= i;
+  if (heartTimer <= 0) {
+    ((heartTimer = 0.62 + (k.health / 34) * 0.55), Ue.heartbeat(rn((34 - k.health) / 34, 0.25, 1)));
+  }
+}
 function cf(i) {
   requestAnimationFrame(cf);
   const t = Math.min((i - Hh) / 1e3, 0.05);
@@ -26728,7 +26870,7 @@ function cf(i) {
     Gr.update(Tr),
     (pc.uniforms.time.value = Tr),
     de === "playing" && (ci || Yn)
-      ? ((Te.shadowMap.needsUpdate = !0), (sn += t), Yv(t), Zv(t), jv(t), qh(t))
+      ? ((Te.shadowMap.needsUpdate = !0), (sn += t), Yv(t), Zv(t), jv(t), qh(t), lowHpPulse(t))
       : de === "menu"
         ? (Qt.position.set(-8 + Math.sin(Tr * 0.045) * 1.4, 5.3, 25),
           Qt.lookAt(3, 4, -10),
