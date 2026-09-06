@@ -24594,6 +24594,37 @@ function Ev(i) {
         n(f, "steel", 0, -0.316, -0.212, 0.05, 0.012, 0.062),
         n(f, "brass", 0, -0.04, -0.243, 0.02, 0.016, 0.03));
       for (let x of [-1, 1]) a(f, x * 0.024, -0.02, -0.35, 0.005);
+      (n(f, "steel", 0, 0.052, -0.171, 0.021, 0.024, 0.016),
+        r(f, "steel", 0, 0.062, -0.166, 0.013, 0.024, "x"),
+        s(f, "dark", 0, 0.062, -0.166, 0.007, 0.0035),
+        n(f, "dark", 0, 0.03, -0.163, 0.023, 0.016, 0.012),
+        n(f, "polymer", 0, -0.008, -0.172, 0.026, 0.03, 0.014, 0.4),
+        n(f, "dark", 0.026, 0.046, -0.31, 0.004, 0.017, 0.055),
+        n(f, "steel", 0.024, 0.048, -0.286, 0.004, 0.012, 0.028),
+        n(f, "dark", -0.027, 0.03, -0.268, 0.005, 0.013, 0.086, 0.4),
+        r(f, "steel", -0.03, 0.022, -0.232, 0.011, 0.008, "x"),
+        n(f, "dark", -0.027, 0.004, -0.208, 0.005, 0.011, 0.042, 0.5),
+        r(f, "steel", -0.03, 0.002, -0.196, 0.013, 0.007, "x"),
+        r(f, "dark", -0.032, 0.002, -0.196, 0.006, 0.004, "x"),
+        r(f, "steel", 0.03, 0.006, -0.243, 0.014, 0.008, "x"),
+        n(f, "dark", 0.032, 0.006, -0.243, 0.004, 0.019, 0.005),
+        s(f, "steel", 0, 0.038, -0.517, 0.0125, 0.0016),
+        r(f, "dark", 0, 0.038, -0.514, 0.0092, 0.006),
+        r(f, "steel", 0, 0.017, -0.508, 0.007, 0.02),
+        n(f, "dark", 0, -0.001, -0.4, 0.019, 0.006, 0.09, 0.5),
+        n(f, "dark", 0, -0.014, -0.352, 0.018, 0.007, 0.028),
+        s(f, "steel", 0, -0.318, -0.176, 0.011, 0.0028));
+      for (let x of [-1, 1]) {
+        for (let M = 0; M < 5; M++)
+          for (let P = 0; P < 4; P++) {
+            const O = n(f, "rubber", x * 0.026, -0.082 - P * 0.036, -0.216 - M * 0.019, 0.0025, 0.011, 0.0075, 0.4);
+            O.rotation.x = 0.28;
+          }
+        (n(f, "polymer", x * 0.0235, -0.16, -0.243, 0.005, 0.085, 0.035, 0.35),
+          n(f, "dark", x * 0.0215, -0.028, -0.196, 0.004, 0.02, 0.02),
+          a(f, x * 0.024, -0.163, -0.243, 0.0055));
+      }
+      for (let M of [-0.474, -0.45, -0.426]) n(f, "dark", 0, 0.0125, M, 0.0165, 0.004, 0.006, 0.4);
       (Ln(f, "P226  /  9MM", -0.025, -0.02, -0.31, 0.085, 0.016, -Math.PI / 2),
         n(f, "steel", 0, -0.02, -0.216, 0.012, 0.05, 0.014));
     }
@@ -24708,8 +24739,12 @@ function Ev(i) {
     for (let x = 0; x < 3; x++) fn(A, new _n(0.24, 0.42), C).rotation.set(Math.PI / 2, 0, (x * Math.PI) / 3);
     let R = null;
     if (u === 3) {
-      ((v.visible = !1), (R = f.clone(!0)));
-      ((R.scale.x = -1), R.position.set(-0.255, -0.012, 0.01), (R.rotation.y = 0.05), m.add(R));
+      ((v.visible = !1), (f.rotation.z = -0.06), (f.rotation.y = -0.045), (R = f.clone(!0)));
+      ((R.scale.x = -1),
+        R.position.set(-0.243, 0.006, 0.012),
+        (R.rotation.y = 0.045),
+        (R.rotation.z = 0.06),
+        m.add(R));
     }
     ((A.visible = !1),
       m.traverse((x) => {
@@ -25159,12 +25194,13 @@ function Av(i = !1, t = !1, screamer = !1) {
 }
 function Rv(i, t, e, n, sprint = !1) {
   const r = e ? Math.sin(i.phase) : 0,
-    s = (i.heavy ? 0.36 : 0.48) * (sprint ? 1.75 : 1),
-    breathe = Math.sin(sn * (sprint ? 7.5 : 1.9) + i.phase * 0.35);
+    s = sprint ? 0.92 : i.heavy ? 0.36 : 0.48,
+    breathe = Math.sin(sn * (sprint ? 7.5 : 1.9) + i.phase * 0.35),
+    bounce = Math.abs(Math.sin(i.phase));
   ((i.legs[0].rotation.x = r * s), (i.legs[1].rotation.x = -r * s));
   for (let l = 0; l < 2; l++) {
     let c = i.phase + l * Math.PI;
-    ((i.knees[l].rotation.x = e ? Math.max(0, -Math.sin(c)) * (sprint ? 1.35 : 0.85) + 0.12 : 0.07),
+    ((i.knees[l].rotation.x = e ? Math.max(0, -Math.sin(c)) * (sprint ? 1.75 : 0.85) + (sprint ? 0.08 : 0.12) : 0.07),
       (i.legs[l].rotation.z = l === 0 ? -0.025 : 0.025),
       (i.arms[l].rotation.x =
         l === 1 && i.melee > 0
@@ -25172,19 +25208,23 @@ function Rv(i, t, e, n, sprint = !1) {
           : n && l === 1
             ? -1.5
             : sprint
-              ? -0.95 + Math.sin(c) * 0.85
+              ? -0.32 + Math.sin(c) * 1.05
               : -0.42 + r * 0.03 + breathe * 0.02),
       (i.arms[l].rotation.z =
         l === 1 && i.melee > 0
           ? -0.6 * Math.sin((i.melee / MELEE_SWING_TIME) * Math.PI)
           : sprint
-            ? (l === 0 ? -0.42 : 0.42) + Math.cos(c) * 0.12
+            ? (l === 0 ? -0.26 : 0.26) + Math.cos(c) * 0.16
             : l === 0
               ? -0.1
               : 0.1),
-      (i.elbows[l].rotation.x = sprint ? -1.72 + Math.sin(c) * 0.35 : -0.91 + Math.sin(i.phase + 1) * 0.025));
+      (i.elbows[l].rotation.x = sprint ? -1.45 + Math.sin(c) * 0.55 : -0.91 + Math.sin(i.phase + 1) * 0.025));
   }
-  i.body.position.y = e ? Math.cos(i.phase * 2) * (sprint ? 0.055 : 0.021) : Math.sin(i.phase) * 0.008 + breathe * 0.004;
+  i.body.position.y = e
+    ? sprint
+      ? 0.018 + bounce * 0.085
+      : Math.cos(i.phase * 2) * 0.021
+    : Math.sin(i.phase) * 0.008 + breathe * 0.004;
   const a = { x: i.hitPitch || 0, v: i.hitPitchVel || 0 },
     o = { x: i.hitRoll || 0, v: i.hitRollVel || 0 };
   (Ze(a, 0, 105, 11, t),
@@ -25195,12 +25235,13 @@ function Rv(i, t, e, n, sprint = !1) {
     (i.hitRollVel = o.v),
     (i.body.rotation.x =
       (e ? 0.06 : 0) +
-      (sprint ? 0.34 + Math.cos(i.phase * 2) * 0.05 : 0) +
+      (sprint ? 0.14 - bounce * 0.04 : 0) +
       a.x -
       (i.melee > 0 ? 0.25 * Math.sin((i.melee / MELEE_SWING_TIME) * Math.PI) : 0)),
-    (i.body.rotation.z = r * (sprint ? 0.12 : 0.023) + o.x),
-    (i.head.rotation.y = r * (sprint ? -0.16 : -0.04) - o.x * 0.6 + (i.lookYaw || 0)),
-    (i.head.rotation.x = -0.035 + a.x * (i.hitHead ? 1.8 : 0.4) + (sprint ? -0.22 : 0)));
+    (i.body.rotation.y = sprint ? r * 0.16 : 0),
+    (i.body.rotation.z = r * (sprint ? 0.07 : 0.023) + o.x),
+    (i.head.rotation.y = r * (sprint ? -0.1 : -0.04) - o.x * 0.6 + (i.lookYaw || 0)),
+    (i.head.rotation.x = -0.035 + a.x * (i.hitHead ? 1.8 : 0.4) + (sprint ? 0.06 : 0)));
 }
 function Cv(i, t, e) {
   const n = new Map(),
@@ -25340,22 +25381,64 @@ class Pv {
   shot(t) {
     let e = [1, 1.8, 1.5, 0.78][t];
     (this.burst(0.12 * e, 0.55, 4e3),
+      this.sweepNoise(0.028, 0.3, 9000, 2600),
       this.tone(145, 32, 0.19 * e, 0.5, "triangle"),
       this.tone(72, 25, 0.28 * e, 0.38),
       this.burst(0.5 * e, 0.12, 900, 0.025),
-      this.tone(1600, 500, 0.025, 0.09, "square"),
-      t === 1 && (this.burst(0.09, 0.16, 1900, 0.34), this.tone(360, 120, 0.05, 0.08, "sawtooth", 0.4)));
+      t === 1 && (this.sweepNoise(0.07, 0.16, 2600, 420, 0.34), this.sweepNoise(0.05, 0.1, 5200, 1400, 0.42)));
   }
   scream() {
-    (this.voice(0.92, 640, 285, 0.08, 0, 12, 1750),
-      this.voice(0.7, 320, 150, 0.045, 0.06, 9, 900),
-      this.sweepNoise(0.85, 0.05, 2800, 620, 0.02, "bandpass", 0.7));
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime,
+      e = this.ctx.createGain(),
+      n = this.ctx.createWaveShaper(),
+      r = new Float32Array(1024);
+    for (let a = 0; a < 1024; a++) {
+      const o = (a / 1023) * 2 - 1;
+      r[a] = Math.tanh(o * 3.4);
+    }
+    ((n.curve = r),
+      (n.oversample = "2x"),
+      e.gain.setValueAtTime(1e-4, t),
+      e.gain.exponentialRampToValueAtTime(0.42, t + 0.07),
+      e.gain.setValueAtTime(0.42, t + 0.62),
+      e.gain.exponentialRampToValueAtTime(1e-4, t + 1.15),
+      n.connect(e),
+      e.connect(this.master));
+    const s = this.ctx.createOscillator(),
+      l = this.ctx.createGain();
+    ((s.frequency.value = 14), (l.gain.value = 46), s.connect(l), s.start(t), s.stop(t + 1.15));
+    for (const a of [0.5, 1, 1.5, 2.01, 2.98]) {
+      const o = this.ctx.createOscillator(),
+        c = this.ctx.createBiquadFilter(),
+        h = this.ctx.createGain();
+      ((o.type = "sawtooth"),
+        o.frequency.setValueAtTime(300 * a, t),
+        o.frequency.exponentialRampToValueAtTime(720 * a, t + 0.12),
+        o.frequency.exponentialRampToValueAtTime(430 * a, t + 0.8),
+        o.frequency.exponentialRampToValueAtTime(180 * a, t + 1.15),
+        (c.type = "bandpass"),
+        (c.frequency.value = 900 + a * 620),
+        (c.Q.value = 2.2),
+        (h.gain.value = 0.5 / (0.7 + a)),
+        l.connect(o.frequency),
+        o.connect(c),
+        c.connect(h),
+        h.connect(n),
+        o.start(t),
+        o.stop(t + 1.15));
+    }
+    (this.sweepNoise(1.1, 0.13, 3400, 900, 0.02, "bandpass", 0.8),
+      this.sweepNoise(0.5, 0.09, 900, 260, 0.6),
+      this.tone(150, 68, 0.9, 0.09, "triangle", 0.03));
   }
   explosion() {
     (this.burst(0.9, 0.5, 900),
-      this.tone(160, 32, 0.75, 0.42, "square"),
+      this.sweepNoise(0.06, 0.55, 9000, 1800),
+      this.tone(160, 32, 0.75, 0.42, "triangle"),
       this.tone(70, 24, 1.1, 0.3),
-      this.burst(1.4, 0.18, 380, 0.06));
+      this.burst(1.4, 0.18, 380, 0.06),
+      this.sweepNoise(1.6, 0.07, 520, 90, 0.12));
   }
   gore(t = 1) {
     (this.sweepNoise(0.22, 0.2 * t, 1500, 180),
@@ -25375,35 +25458,39 @@ class Pv {
       this.sweepNoise(0.45, 0.085 * n, 950, 190, 0.04));
   }
   hit(t, e) {
-    (this.sweepNoise(0.12, 0.26, t ? 2400 : 1100, t ? 420 : 170),
-      this.tone(t ? 160 : 118, 50, 0.11, 0.12, "triangle"),
-      e && (this.sweepNoise(0.24, 0.32, 3400, 280, 0.008), this.tone(230, 68, 0.2, 0.12, "triangle", 0.01)));
+    (this.sweepNoise(0.09, 0.28, t ? 2600 : 900, t ? 520 : 150),
+      this.tone(t ? 130 : 88, 46, 0.09, 0.11, "triangle"),
+      e && (this.sweepNoise(0.26, 0.34, 2600, 240, 0.008), this.tone(120, 52, 0.22, 0.13, "triangle", 0.01)));
   }
   step(t) {
     (this.burst(0.065, t ? 0.055 : 0.03, 500), this.tone(65, 30, 0.08, 0.02));
   }
   reload() {
-    (this.burst(0.08, 0.17, 2600),
-      this.tone(850, 190, 0.045, 0.075, "square"),
+    (this.burst(0.05, 0.2, 3400),
+      this.sweepNoise(0.035, 0.22, 5200, 1400, 0.02),
       this.burst(0.08, 0.13, 3200, 0.65),
-      this.burst(0.055, 0.17, 2200, 1.15));
+      this.sweepNoise(0.04, 0.26, 4200, 900, 1.12),
+      this.tone(120, 62, 0.09, 0.1, "triangle", 1.14));
   }
   hurt(t = 12) {
     (this.sweepNoise(0.2, 0.32, 950, 130),
       this.tone(82, 38, 0.3, 0.22),
-      this.voice(t > 22 ? 0.52 : 0.34, t > 22 ? 185 : 235, 105, 0.085, 0.02, 5, 1150),
-      t > 22 && this.tone(2400, 1900, 1.2, 0.03, "sine", 0.06));
+      this.voice(t > 22 ? 0.52 : 0.34, t > 22 ? 185 : 235, 105, 0.11, 0.02, 5, 1150),
+      t > 22 && this.sweepNoise(1.1, 0.03, 4200, 3200, 0.06, "bandpass", 6));
   }
   heartbeat(t = 1) {
-    (this.tone(58, 34, 0.16, 0.16 * t, "sine"), this.tone(52, 30, 0.2, 0.12 * t, "sine", 0.19));
+    (this.tone(58, 30, 0.17, 0.19 * t, "sine"),
+      this.tone(46, 26, 0.22, 0.14 * t, "sine", 0.19),
+      this.sweepNoise(0.09, 0.03 * t, 220, 70));
   }
   wave() {
-    (this.tone(200, 210, 0.35, 0.12, "sine"),
-      this.tone(300, 310, 0.4, 0.11, "sine", 0.15),
-      this.tone(450, 470, 0.6, 0.1, "sine", 0.3));
+    (this.tone(88, 62, 1.1, 0.22, "triangle"),
+      this.tone(44, 31, 1.4, 0.18, "sine"),
+      this.sweepNoise(0.9, 0.09, 260, 70, 0.05),
+      this.tone(120, 82, 0.9, 0.12, "triangle", 0.35));
   }
   pickup() {
-    (this.sweepNoise(0.07, 0.12, 3200, 900), this.tone(420, 620, 0.11, 0.05, "sine", 0.02));
+    (this.sweepNoise(0.06, 0.16, 2600, 700), this.tone(190, 120, 0.1, 0.09, "triangle", 0.01));
   }
 }
 const Dn = 180;
@@ -25706,7 +25793,7 @@ function detonateScreamer(i, t) {
 function updateScreamer(i, t) {
   ((i.fuse -= t), (i.screamTimer -= t));
   if (i.screamTimer <= 0) {
-    ((i.screamTimer = Pe(1.7, 3.2)), Ue.scream(), (i.screamFlash = 0.35));
+    ((i.screamTimer = Pe(1.25, 2.1)), Ue.scream(), (i.screamFlash = 0.9));
   }
   i.screamFlash = Math.max(0, (i.screamFlash || 0) - t);
   const e = i.root.position,
@@ -26160,8 +26247,8 @@ function Gv(i, t, e) {
         .clone()
         .multiplyScalar((CORPSE_LAUNCH_SCALE * (Ut === 1 ? 2.2 : Ut === 0 ? 0.85 : 1.1) * (t ? 1.35 : 1)) / (i.heavy ? 1.7 : 1)),
       velocityY: (CORPSE_LAUNCH_LIFT * (Ut === 1 ? 1.6 : 1) * (t ? 1.4 : 1)) / (i.heavy ? 1.7 : 1),
-      spinX: Pe(-CORPSE_SPIN, CORPSE_SPIN) * (t ? 1.8 : 1),
-      spinZ: Pe(-CORPSE_SPIN, CORPSE_SPIN),
+      spinX: rn(e.length() * 0.85, 1.4, CORPSE_SPIN) * (t ? 1.35 : 1),
+      spinZ: Pe(-0.9, 0.9),
       tumbleX: 0,
       tumbleZ: 0,
     }),
@@ -26550,7 +26637,9 @@ function Yv(i) {
       ((k.health = Math.min(100, k.health + i * 7)),
       (Et("health").textContent = Math.ceil(k.health)),
       (Et("health-bar").style.width = k.health + "%"),
-      (Et("health-bar").style.background = k.health < 30 ? "#ff6c48" : "#e3ef85")),
+      (Et("health-bar").style.background = k.health < 30 ? "#ff6c48" : "#e3ef85"),
+      (Et("lowhp").style.opacity = rn((46 - k.health) / 46, 0, 1) * 0.82),
+      Et("lowhp").classList.toggle("crit", k.health <= 24)),
     Kv(i, t, o));
 }
 function Kv(i, t, e) {
@@ -26568,7 +26657,7 @@ function Kv(i, t, e) {
     f = Math.sin(sn * 1.65) * 0.0035 * (1 - s * 0.86);
   (n.position.set(
     Hi(0.25, 0, s) - ce.lagYaw.x * 0.15 + ce.strafe.x * a + Math.sin(Cr) * 0.014 * m * (1 - s * 0.88),
-    Hi(-0.24, -r.adsY, s) +
+    Hi(-0.24 + (Ut === 3 ? 0.175 : 0), -r.adsY, s) +
       ce.lagPitch.x * 0.12 +
       f -
       Math.abs(Math.cos(Cr)) * m * 0.012 * (1 - s * 0.9) +
@@ -26783,8 +26872,8 @@ function qh(i) {
     ((e.fall = Tn(e.fall, Math.PI / 2, airborne ? 2.4 : 8, i)),
       (e.tumbleX += e.spinX * i),
       (e.tumbleZ += e.spinZ * i),
-      (e.spinX *= Math.exp(-i * (airborne ? 0.9 : 6))),
-      (e.spinZ *= Math.exp(-i * (airborne ? 0.9 : 6))),
+      (e.spinX *= Math.exp(-i * (airborne ? 1.7 : 6))),
+      (e.spinZ *= Math.exp(-i * (airborne ? 2.6 : 6))),
       (e.root.rotation.x = e.fall + e.tumbleX),
       (e.root.rotation.z = e.rot * e.fall + e.tumbleZ),
       Ba(e.root.position, e.velocity.x * i, e.velocity.z * i, 0.3),
