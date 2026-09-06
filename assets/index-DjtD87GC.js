@@ -24163,25 +24163,33 @@ const Oe = [
     fov: 43,
   },
   {
-    name: "P226 SIDEARM",
-    short: "P226",
-    type: "9 × 19 MM / SEMI AUTO",
-    mag: 15,
-    reserve: 90,
-    damage: 34,
-    interval: 0.135,
-    reload: 1.5,
-    recoil: 0.03,
-    kick: 0.052,
-    spread: 0.019,
-    adsSpread: 0.0026,
+    name: "P226 AKIMBO",
+    short: "P226×2",
+    type: "9 × 19 MM / DUAL SEMI",
+    mag: 24,
+    reserve: 168,
+    damage: 37,
+    interval: 0.092,
+    reload: 2.1,
+    recoil: 0.026,
+    kick: 0.05,
+    spread: 0.021,
+    adsSpread: 0.0035,
     pellets: 1,
     auto: !1,
     range: 60,
     fov: 52,
   },
 ];
-const RECOIL_AIM_PITCH = [3.5, 1.9, 2.4, 2.9],
+const HEADSHOT_LETHAL_DAMAGE = 1e4,
+  SHOTGUN_CLOSE_MULT = 2.15,
+  SHOTGUN_FALLOFF_METERS = 13,
+  SHOTGUN_SPLASH_RADIUS = 2.8,
+  SHOTGUN_SPLASH_SHARE = 0.34,
+  SHOTGUN_SPLASH_CAP = 240,
+  LEAN_OFFSET = 0.62,
+  LEAN_ROLL = 0.33,
+  RECOIL_AIM_PITCH = [3.5, 1.9, 2.4, 2.9],
   RECOIL_AIM_YAW = [1.35, 0.8, 1.05, 1.15],
   RECOIL_RECOVERY_SHARE = 0.4,
   RECOIL_RECOVERY_RATE = 6.5,
@@ -24501,28 +24509,33 @@ function Ev(i) {
     } else {
       (hn(
         f,
-        t.upper,
+        t.steel,
         [
-          [-0.5, 0.006],
-          [-0.5, 0.07],
-          [-0.44, 0.076],
-          [-0.2, 0.076],
-          [-0.16, 0.06],
-          [-0.16, 0.006],
+          [-0.512, 0.012],
+          [-0.508, 0.062],
+          [-0.47, 0.074],
+          [-0.24, 0.074],
+          [-0.19, 0.062],
+          [-0.163, 0.03],
+          [-0.163, 0.006],
         ],
-        0.056,
+        0.046,
       ),
         hn(
           f,
-          t.receiver,
+          t.tan,
           [
-            [-0.46, 0.002],
-            [-0.19, 0.002],
-            [-0.185, -0.052],
-            [-0.43, -0.046],
+            [-0.47, 0.004],
+            [-0.19, 0.004],
+            [-0.183, -0.055],
+            [-0.44, -0.048],
           ],
-          0.046,
+          0.044,
         ),
+        n(f, "dark", 0.024, 0.052, -0.35, 0.002, 0.024, 0.075),
+        n(f, "dark", 0, 0.074, -0.42, 0.016, 0.005, 0.11),
+        r(f, "dark", 0, 0.038, -0.514, 0.0125, 0.014),
+        s(f, "steel", 0, 0.038, -0.516, 0.017, 0.0025),
         hn(
           f,
           t.polymer,
@@ -24553,7 +24566,13 @@ function Ev(i) {
           0.038,
         ),
         n(_, "polymer", 0.014, -0.19, 0, 0.05, 0.014, 0.05));
-      for (let x of [-1, 1]) for (let M of [-0.185, -0.205, -0.225, -0.245]) n(f, "dark", x * 0.029, 0.04, M, 0.005, 0.05, 0.008);
+      for (let x of [-1, 1])
+        for (let M of [-0.178, -0.196, -0.214, -0.232, -0.25, -0.42, -0.438, -0.456])
+          n(f, "dark", x * 0.024, 0.044, M, 0.004, 0.046, 0.007);
+      for (let x of [-1, 1]) n(f, "dark", x * 0.023, -0.115, -0.245, 0.004, 0.13, 0.036);
+      (n(f, "dark", 0, 0.014, -0.198, 0.024, 0.02, 0.03),
+        n(f, "steel", 0, -0.316, -0.212, 0.05, 0.012, 0.062),
+        n(f, "brass", 0, -0.04, -0.243, 0.02, 0.016, 0.03));
       for (let x of [-1, 1]) a(f, x * 0.024, -0.02, -0.35, 0.005);
       (Ln(f, "P226  /  9MM", -0.025, -0.02, -0.31, 0.085, 0.016, -Math.PI / 2),
         n(f, "steel", 0, -0.02, -0.216, 0.012, 0.05, 0.014));
@@ -24654,7 +24673,7 @@ function Ev(i) {
       _ && vi(_),
       vi(f));
     const A = new Me();
-    (A.position.set(0, 0.027, w - 0.095), f.add(A));
+    ((A.name = "muzzleFlash"), A.position.set(0, 0.027, w - 0.095), f.add(A));
     const C = new pe({
       transparent: !0,
       blending: Dr,
@@ -24667,6 +24686,11 @@ function Ev(i) {
         "varying vec2 vUv;void main(){vec2 p=vUv-.5;float r=length(p*vec2(1.,.65));float a=atan(p.y,p.x);float star=pow(abs(sin(a*5.)),12.)*.3+.1;float alpha=(1.-smoothstep(0.,.45,r))*(1.-smoothstep(star-.1,star+.15,r));vec3 c=mix(vec3(1.,.24,.035),vec3(1.,.95,.67),1.-smoothstep(0.,.35,r));gl_FragColor=vec4(c*2.,alpha);}",
     });
     for (let x = 0; x < 3; x++) fn(A, new _n(0.24, 0.42), C).rotation.set(Math.PI / 2, 0, (x * Math.PI) / 3);
+    let R = null;
+    if (u === 3) {
+      ((v.visible = !1), (R = f.clone(!0)));
+      ((R.scale.x = -1), R.position.set(-0.255, -0.012, 0.01), (R.rotation.y = 0.05), m.add(R));
+    }
     ((A.visible = !1),
       m.traverse((x) => {
         x.isMesh && ((x.castShadow = !1), (x.receiveShadow = !1), (x.frustumCulled = !1));
@@ -24680,6 +24704,8 @@ function Ev(i) {
         leftHand: T,
         support: v,
         opticLens: g,
+        flashAlt: R ? R.getObjectByName("muzzleFlash") : null,
+        altShot: !1,
         muzzle: A.position.clone(),
         adsY: E,
       }),
@@ -24759,13 +24785,15 @@ const bv = {
     metal: ae(6713711, "metal", 0.32, 0.8),
     strap: ae(4541759, "cloth", 0.95, 0.01),
     skin: ae(11702642, "cloth", 0.9, 0),
+    officer: ae(1778739, "cloth", 0.9, 0.02),
+    gold: ae(13214247, "metal", 0.38, 0.75),
     visor: new Nu({ color: 1584689, metalness: 0.6, roughness: 0.12, clearcoat: 1 }),
     red: new tn({ color: 16730156, toneMapped: !1 }),
     eye: new tn({ color: 16755300, toneMapped: !1 }),
   },
   zo = new Map(),
   ua = new Map();
-function wv(i, t) {
+function wv(i, t, rangedVariant = 0) {
   const e = new Me(),
     n = new Me();
   ((n.name = "torso"), e.add(n));
@@ -24901,6 +24929,19 @@ function wv(i, t) {
       ],
       0.007,
     ));
+  if (t) {
+    (s(l, "officer", 0, 0.088, -0.012, 0.196, 0.062, 0.198),
+      s(l, "officer", 0, 0.135, -0.02, 0.176, 0.055, 0.176),
+      s(l, "officer", 0, 0.076, 0.168, 0.176, 0.026, 0.075),
+      s(l, "gold", 0, 0.106, 0.15, 0.06, 0.028, 0.03),
+      s(n, "officer", 0, 0.96, 0, 0.268, 0.2, 0.212),
+      s(n, "officer", 0, 1.42, -0.02, 0.32, 0.07, 0.24),
+      s(n, "gold", 0, 1.3, 0.263, 0.062, 0.05, 0.02));
+    for (let d of [-1, 1])
+      (s(n, "officer", d * 0.272, 1.443, 0.012, 0.125, 0.032, 0.145),
+        s(n, "gold", d * 0.272, 1.462, 0.012, 0.1, 0.014, 0.108),
+        s(n, "gold", d * 0.24, 1.2, 0.24, 0.03, 0.09, 0.014));
+  }
   const h = [],
     u = [],
     m = [],
@@ -25033,6 +25074,13 @@ function wv(i, t) {
     ],
     0.054,
   );
+  if (t) {
+    (s(g, "metal", 0, 0.075, -0.2, 0.028, 0.028, 0.16),
+      rangedVariant === 1 &&
+        (a(g, "metal", 0, 0.007, -0.78, 0.011, 0.3),
+        s(g, "armor", 0, 0.1, -0.17, 0.042, 0.048, 0.24),
+        s(g, "metal", 0, 0.1, -0.31, 0.05, 0.05, 0.03)));
+  }
   const _ = s(g, "rubber", 0, -0.086, -0.1, 0.048, 0.12, 0.065);
   if (
     ((_.rotation.x = -0.23),
@@ -25054,8 +25102,8 @@ function wv(i, t) {
   );
 }
 function Av(i = !1, t = !1) {
-  const e = i ? "heavy" : t ? "ranged" : "assault";
-  zo.has(e) || zo.set(e, wv(i));
+  const e = i ? "heavy" : t ? (Math.random() < 0.5 ? "ranged" : "ranged-dmr") : "assault";
+  zo.has(e) || zo.set(e, wv(i, t, e === "ranged-dmr" ? 1 : 0));
   const n = zo.get(e).clone(!0);
   n.userData.enemyKind = e;
   const r = [];
@@ -25194,6 +25242,13 @@ class Pv {
       this.burst(0.5 * e, 0.12, 900, 0.025),
       this.tone(1600, 500, 0.025, 0.09, "square"),
       t === 1 && (this.burst(0.09, 0.16, 1900, 0.34), this.tone(360, 120, 0.05, 0.08, "sawtooth", 0.4)));
+  }
+  enemyShot(t = 0, e = 12) {
+    const n = rn(1 - e / 40, 0.25, 1);
+    (this.burst(0.07, 0.17 * n, t ? 2400 : 3300),
+      this.tone(t ? 190 : 300, 55, 0.12, 0.13 * n, "square"),
+      this.tone(t ? 88 : 125, 38, 0.17, 0.1 * n),
+      this.burst(0.3, 0.05 * n, 620, 0.03));
   }
   hit(t, e) {
     (this.burst(0.105, 0.13, t ? 1700 : 800),
@@ -25430,7 +25485,12 @@ let Ut = 0,
   sn = 0,
   recoilDebtPitch = 0,
   recoilDebtYaw = 0,
-  recoilSettle = 0;
+  recoilSettle = 0,
+  retryWave = 1,
+  leanAmount = 0,
+  cursorNX = 0,
+  cursorNY = 0,
+  trackpadAim = !1;
 try {
   Pr = Number(localStorage.getItem("breach-best") || 0);
 } catch {}
@@ -25627,7 +25687,7 @@ function kv() {
     n = t[1] + Pe(-1, 1);
   if (mc(e, n)) return !1;
   const r = gc(e, n);
-  return ii[r] === 32767 ? !1 : (Lv(e, n, en >= 3 && Math.random() < 0.22, en >= 2 && Math.random() < 0.2), !0);
+  return ii[r] === 32767 ? !1 : (Lv(e, n, en >= 3 && Math.random() < 0.22, en >= 2 && Math.random() < 0.28), !0);
 }
 function _c(i, t = "OPERATION BLACKSITE", e = 3) {
   ((Et("announcement").querySelector("strong").textContent = i),
@@ -25673,8 +25733,11 @@ function Vv() {
   ((Yi = sn),
     Rn[Ut]--,
     (ws = Ut === 1 ? 0.058 : 0.043),
+    (Vi.models[Ut].userData.altShot = Ut === 3 ? Rn[Ut] % 2 === 1 : !1),
     (Vi.models[Ut].userData.flash.rotation.z = Pe(0, Math.PI)),
     Vi.models[Ut].userData.flash.scale.setScalar(Pe(0.7, 1.2) * (Ut === 1 ? 1.5 : 1)),
+    Vi.models[Ut].userData.flashAlt &&
+      (Vi.models[Ut].userData.flashAlt.rotation.z = Pe(0, Math.PI)),
     Ue.shot(Ut),
     ce.shot(Ut),
     (Ia += i.recoil * 16),
@@ -25721,8 +25784,8 @@ function Vv() {
     const f = Qt.position.clone().addScaledVector(_r, h);
     if ((o < 3 && tf(t, f), u)) {
       ((n = !0), (r ||= m));
-      const g = Ut === 1 ? rn(1 - h / 54, 0.28, 1) : 1;
-      let _ = i.damage * (m ? 2.6 : 1) * g;
+      const g = Ut === 1 ? rn(SHOTGUN_CLOSE_MULT - h / SHOTGUN_FALLOFF_METERS, 0.22, SHOTGUN_CLOSE_MULT) : 1;
+      let _ = m ? HEADSHOT_LETHAL_DAMAGE : i.damage * g;
       const d = e.get(u) || { damage: 0, head: !1, point: f, direction: _r.clone() };
       ((d.damage += _),
         (d.head ||= m),
@@ -25743,6 +25806,18 @@ function Vv() {
       (o.knockback = l.direction.clone().multiplyScalar(Math.min(2.8, l.damage * 0.015) / (o.heavy ? 1.8 : 1))),
       Rr.burst(l.point, l.direction.clone().negate(), o.heavy ? "armor" : "body", Ut === 0 ? 0.8 : 1.6),
       o.hp <= 0 && (Gv(o, l.head, l.direction), (s = !0)));
+  if (Ut === 1 && e.size)
+    for (const [o, l] of e)
+      for (const c of Je) {
+        if (!c.alive || c.spawn > 0 || e.has(c)) continue;
+        const h = c.root.position.distanceTo(l.point);
+        if (h > SHOTGUN_SPLASH_RADIUS) continue;
+        const u = Math.min(l.damage, SHOTGUN_SPLASH_CAP) * SHOTGUN_SPLASH_SHARE * (1 - h / SHOTGUN_SPLASH_RADIUS);
+        ((c.hp -= u),
+          (c.stagger = Math.max(c.stagger, 0.2)),
+          Rr.burst(c.root.position.clone().setY(1.1), l.direction.clone().negate(), c.heavy ? "armor" : "body", 0.6),
+          c.hp <= 0 && (Gv(c, !1, l.direction), (s = !0)));
+      }
   (n &&
     ((Mr = s ? 0.3 : 0.18),
     (Et("hitmarker").style.color = s ? "#e7ee8d" : r ? "#ffad70" : "#fff"),
@@ -25810,7 +25885,8 @@ function vc() {
   }
 }
 function Xv() {
-  (vc(),
+  ((retryWave = Math.max(1, en)),
+    vc(),
     (de = "dead"),
     (bi = Ei = !1),
     document.exitPointerLock?.(),
@@ -25857,7 +25933,7 @@ function qv() {
     (Rn = Oe.map((i) => i.mag)),
     (Cn = Oe.map((i) => i.reserve)),
     (Ut = Zu),
-    (en = 0),
+    (en = Math.max(0, retryWave - 1)),
     (hi = 0),
     (Ja = 0),
     (sn = 0),
@@ -25883,6 +25959,10 @@ function af() {
     _c("WEAPONS FREE", "CURSOR AIM / ARROW KEYS ALSO TURN", 3));
 }
 async function xc() {
+  if (trackpadAim) {
+    af();
+    return;
+  }
   Yn = !1;
   try {
     await ja.requestPointerLock();
@@ -25905,12 +25985,15 @@ function $a() {
     (bi = Ei = !1),
     Fe.clear(),
     (Et("pause-title").innerHTML = "TAKE A<br>BREATHER."),
+    (retryWave = 1),
     (Et("pause-copy").textContent = "The fight can wait."),
     Et("resume").classList.remove("hidden"),
     (Et("restart").textContent = "RESTART OPERATION"),
     Et("pause").classList.remove("hidden"));
 }
-Et("deploy").onclick = of;
+Et("deploy").onclick = () => {
+  ((retryWave = 1), of());
+};
 Et("restart").onclick = of;
 Et("resume").onclick = () => {
   ((de = "playing"), Et("pause").classList.add("hidden"), Ue.init(), xc());
@@ -25936,6 +26019,10 @@ for (const i of document.querySelectorAll(".weapon-card"))
 Et("settings-open").onclick = () => Et("settings").classList.remove("hidden");
 Et("settings-close").onclick = () => Et("settings").classList.add("hidden");
 Et("sensitivity").oninput = (i) => (ju = +i.target.value);
+Et("trackpad").onchange = (i) => {
+  ((trackpadAim = i.target.checked),
+    trackpadAim ? de === "playing" && (document.exitPointerLock?.(), af()) : de === "playing" && xc());
+};
 Et("volume").oninput = (i) => Ue.setVolume(+i.target.value);
 Et("quality").onchange = (i) => {
   ((gr = i.target.value),
@@ -25957,6 +26044,7 @@ ja.addEventListener("click", () => {
   de === "playing" && !ci && !Yn && xc();
 });
 document.addEventListener("mousemove", (i) => {
+  ((cursorNX = (i.clientX / innerWidth) * 2 - 1), (cursorNY = (i.clientY / innerHeight) * 2 - 1));
   if (de !== "playing" || (!ci && !Yn)) return;
   const t = 0.00185 * ju * Hi(1, 0.62, On);
   ((k.yaw -= i.movementX * t), (k.pitch = rn(k.pitch - i.movementY * t, -1.42, 1.42)));
@@ -26063,13 +26151,28 @@ function Yv(i) {
       (k.grounded = !0)));
   const o = Math.hypot(k.vel.x, k.vel.z);
   Cr += i * o * 1.8;
-  const l = k.grounded && k.slide <= 0 ? Math.sin(Cr * 2) * 0.018 * (o / 5) : 0;
+  const l = k.grounded && k.slide <= 0 ? Math.sin(Cr * 2) * 0.018 * (o / 5) : 0,
+    leanInput = (Fe.has("KeyE") ? 1 : 0) - (Fe.has("KeyQ") ? 1 : 0);
+  leanAmount = Tn(leanAmount, k.slide > 0 || !k.grounded ? 0 : leanInput, 9, i);
+  const leanRightX = Math.cos(k.yaw),
+    leanRightZ = -Math.sin(k.yaw);
+  let leanShift = leanAmount * LEAN_OFFSET;
+  if (Yn) {
+    const u = Math.abs(cursorNX) > 0.55 ? (Math.sign(cursorNX) * (Math.abs(cursorNX) - 0.55)) / 0.45 : 0,
+      m = Math.abs(cursorNY) > 0.55 ? (Math.sign(cursorNY) * (Math.abs(cursorNY) - 0.55)) / 0.45 : 0;
+    ((k.yaw -= u * i * 2.6 * ju), (k.pitch = rn(k.pitch - m * i * 1.7 * ju, -1.42, 1.42)));
+  }
+  leanShift &&
+    mc(k.pos.x + leanRightX * leanShift * 1.3, k.pos.z + leanRightZ * leanShift * 1.3, 0.3) &&
+    (leanShift *= 0.2);
   (Qt.position.copy(k.pos),
-    (Qt.position.y += l),
+    (Qt.position.y += l - Math.abs(leanAmount) * 0.09),
+    (Qt.position.x += leanRightX * leanShift),
+    (Qt.position.z += leanRightZ * leanShift),
     Qt.rotation.set(
       k.pitch + Ma,
       k.yaw + ya,
-      Math.sin(Cr) * 0.004 * (o / 5) + ce.rollKick.x * 0.12 + (k.slide > 0 ? -0.055 : 0),
+      Math.sin(Cr) * 0.004 * (o / 5) + ce.rollKick.x * 0.12 + (k.slide > 0 ? -0.055 : 0) - leanAmount * LEAN_ROLL,
       "YXZ",
     ),
     (Qt.position.x += Pe(-In, In)),
@@ -26197,7 +26300,8 @@ function Kv(i, t, e) {
     const d = _ > 0.12 && _ < 0.55 ? Math.sin(((_ - 0.12) / 0.43) * Math.PI) * 0.14 : 0;
     ((r.handguard.position.z = -0.67 + d), (r.support.position.z += d));
   }
-  ((r.flash.visible = ws > 0),
+  ((r.flash.visible = ws > 0 && !r.altShot),
+    r.flashAlt && (r.flashAlt.visible = ws > 0 && r.altShot),
     (Vi.light.intensity = ws > 0 ? 10 : 0),
     Vi.light.position.copy(n.position).add(new D(0, 0.1, -0.6)),
     (Wr.fov = Hi(65, 58, s)),
@@ -26212,6 +26316,7 @@ const RANGED_HOLD_MIN = 7.5,
   RANGED_BASE_ACCURACY = 0.56,
   RANGED_MISS_SPREAD = 2.1,
   RANGED_DAMAGE = 8,
+  RANGED_DMR_DAMAGE = 15,
   FLANK_STRENGTH = 0.85;
 function Zv(i) {
   ((Ho -= i), Ho <= 0 && (ef(), (Ho = 0.35)));
@@ -26314,8 +26419,8 @@ function Zv(i) {
               ),
             tf(g, w, !0),
             xs(g, 5, 16760184, 1, 0.15, 0.09),
-            Ue.burst(0.11, 0.07, 1800),
-            p && Xh(RANGED_DAMAGE),
+            Ue.enemyShot(e.root.userData.enemyKind === "ranged-dmr" ? 1 : 0, a),
+            p && Xh(e.root.userData.enemyKind === "ranged-dmr" ? RANGED_DMR_DAMAGE : RANGED_DAMAGE),
             (e.attack = Pe(RANGED_COOLDOWN_MIN, RANGED_COOLDOWN_MAX)));
         }
       } else
