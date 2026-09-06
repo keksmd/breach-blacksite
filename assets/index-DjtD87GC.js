@@ -24162,7 +24162,30 @@ const Oe = [
     range: 140,
     fov: 43,
   },
+  {
+    name: "P226 SIDEARM",
+    short: "P226",
+    type: "9 × 19 MM / SEMI AUTO",
+    mag: 15,
+    reserve: 90,
+    damage: 34,
+    interval: 0.135,
+    reload: 1.5,
+    recoil: 0.03,
+    kick: 0.052,
+    spread: 0.019,
+    adsSpread: 0.0026,
+    pellets: 1,
+    auto: !1,
+    range: 60,
+    fov: 52,
+  },
 ];
+const RECOIL_AIM_PITCH = [3.5, 1.9, 2.4, 2.9],
+  RECOIL_AIM_YAW = [1.35, 0.8, 1.05, 1.15],
+  RECOIL_RECOVERY_SHARE = 0.4,
+  RECOIL_RECOVERY_RATE = 6.5,
+  RECOIL_SETTLE_DELAY = 0.12;
 function Ev(i) {
   const t = {
       receiver: ae(5857384, "metal", 0.36, 0.82),
@@ -24259,7 +24282,7 @@ function Ev(i) {
     for (let w of [0.03, 0.05]) r(_, "glove", 0, w, 0, 0.057, 0.012, "y");
     return (vi(_), _);
   }
-  for (let u = 0; u < 3; u++) {
+  for (let u = 0; u < Oe.length; u++) {
     const m = new Me(),
       f = new Me();
     (m.add(f), i.add(m), (m.visible = !1));
@@ -24268,7 +24291,7 @@ function Ev(i) {
       d = new Me(),
       p = new Me();
     (f.add(d, p), (d.position.z = -0.67));
-    const w = u === 0 ? -1.02 : u === 1 ? -1.29 : -1.35;
+    const w = u === 0 ? -1.02 : u === 1 ? -1.29 : u === 2 ? -1.35 : -0.4;
     if (u === 0) {
       (hn(
         f,
@@ -24399,7 +24422,7 @@ function Ev(i) {
           n(f, "polymer", -0.062, -0.02, M, 0.035, 0.02, 0.028));
       }
       (Ln(f, "M590 / 12 GA", -0.047, 0.014, -0.287, 0.14, 0.024, -Math.PI / 2), o(f, -0.28, 0.17, 0.079));
-    } else {
+    } else if (u === 2) {
       (hn(
         f,
         t.receiver,
@@ -24475,20 +24498,79 @@ function Ev(i) {
           a(f, x * 0.06, -0.01, -0.89, 0.009));
       (Ln(f, "MK14  /  EBR", -0.045, -0.018, -0.28, 0.13, 0.024, -Math.PI / 2),
         Ln(f, "7.62 × 51", -0.046, -0.065, -0.405, 0.09, 0.018, -Math.PI / 2));
+    } else {
+      (hn(
+        f,
+        t.upper,
+        [
+          [-0.5, 0.006],
+          [-0.5, 0.07],
+          [-0.44, 0.076],
+          [-0.2, 0.076],
+          [-0.16, 0.06],
+          [-0.16, 0.006],
+        ],
+        0.056,
+      ),
+        hn(
+          f,
+          t.receiver,
+          [
+            [-0.46, 0.002],
+            [-0.19, 0.002],
+            [-0.185, -0.052],
+            [-0.43, -0.046],
+          ],
+          0.046,
+        ),
+        hn(
+          f,
+          t.polymer,
+          [
+            [-0.238, -0.048],
+            [-0.152, -0.05],
+            [-0.098, -0.3],
+            [-0.186, -0.312],
+          ],
+          0.05,
+        ),
+        r(f, "steel", 0, 0.038, -0.482, 0.018, 0.055),
+        r(f, "dark", 0, 0.038, -0.503, 0.011, 0.03),
+        n(f, "dark", 0.021, 0.058, -0.3, 0.02, 0.03, 0.1),
+        n(f, "steel", 0, 0.076, -0.33, 0.014, 0.006, 0.16),
+        (_ = new Me()),
+        _.position.set(0, -0.1, -0.192),
+        f.add(_),
+        hn(
+          _,
+          t.dark,
+          [
+            [-0.042, 0],
+            [0.036, 0],
+            [0.052, -0.19],
+            [-0.026, -0.185],
+          ],
+          0.038,
+        ),
+        n(_, "polymer", 0.014, -0.19, 0, 0.05, 0.014, 0.05));
+      for (let x of [-1, 1]) for (let M of [-0.185, -0.205, -0.225, -0.245]) n(f, "dark", x * 0.029, 0.04, M, 0.005, 0.05, 0.008);
+      for (let x of [-1, 1]) a(f, x * 0.024, -0.02, -0.35, 0.005);
+      (Ln(f, "P226  /  9MM", -0.025, -0.02, -0.31, 0.085, 0.016, -Math.PI / 2),
+        n(f, "steel", 0, -0.02, -0.216, 0.012, 0.05, 0.014));
     }
-    if (
+    if (u !== 3) {
       (r(f, "steel", 0, 0.027, w + 0.105, u === 1 ? 0.022 : 0.013, 0.29),
-      r(f, "dark", 0, 0.027, w - 0.038, u === 1 ? 0.025 : 0.026, 0.081),
-      r(f, "rubber", 0, 0.027, w - 0.081, u === 1 ? 0.019 : 0.018, 0.002),
-      s(f, "steel", 0, 0.027, w - 0.084, 0.022, 0.003),
-      u !== 1)
-    )
+        r(f, "dark", 0, 0.027, w - 0.038, u === 1 ? 0.025 : 0.026, 0.081),
+        r(f, "rubber", 0, 0.027, w - 0.081, u === 1 ? 0.019 : 0.018, 0.002),
+        s(f, "steel", 0, 0.027, w - 0.084, 0.022, 0.003));
+    }
+    if (u !== 1 && u !== 3)
       for (let x = 0; x < 6; x++) {
         let M = (x * Math.PI) / 3;
         const P = n(f, "rubber", Math.cos(M) * 0.025, 0.027 + Math.sin(M) * 0.025, w - 0.039, 0.01, 0.006, 0.036);
         P.rotation.z = M;
       }
-    for (let x of [-0.16, -0.24, -0.43]) for (let M of [-1, 1]) a(f, M * 0.046, -0.022, x, 0.005);
+    if (u !== 3) for (let x of [-0.16, -0.24, -0.43]) for (let M of [-1, 1]) a(f, M * 0.046, -0.022, x, 0.005);
     (ki(
       f,
       t.dark,
@@ -24511,7 +24593,7 @@ function Ev(i) {
         ],
         0.004,
       ));
-    const E = u === 0 ? 0.162 : 0.142;
+    const E = u === 0 ? 0.162 : u === 3 ? 0.086 : 0.142;
     if (u === 0) {
       n(f, "dark", 0, 0.106, -0.24, 0.062, 0.034, 0.142);
       for (let x of [-0.325, -0.165])
@@ -24541,6 +24623,12 @@ function Ev(i) {
         (g = fn(f, new Ca(0.039, 64), Sv(), 0, E, -0.157)),
         (g.visible = !1),
         Ln(f, "STRIX  2.4", -0.05, E, -0.24, 0.086, 0.017, -Math.PI / 2));
+    } else if (u === 3) {
+      (n(f, "dark", 0, E, -0.2, 0.03, 0.02, 0.014),
+        n(f, "white", -0.011, E + 0.005, -0.196, 0.005, 0.005, 0.006),
+        n(f, "white", 0.011, E + 0.005, -0.196, 0.005, 0.005, 0.006),
+        n(f, "dark", 0, E, -0.462, 0.009, 0.021, 0.012),
+        n(f, "white", 0, E + 0.006, -0.467, 0.005, 0.005, 0.005));
     } else {
       (n(f, "dark", 0, 0.1, -0.209, 0.055, 0.026, 0.054),
         s(f, "steel", 0, E, -0.21, 0.015, 0.0038),
@@ -24553,13 +24641,14 @@ function Ev(i) {
       }
       r(f, "dark", 0.036, 0.108, -0.209, 0.012, 0.015, "x");
     }
-    const S = l(f, 0.038, -0.157, -0.164);
-    ((S.rotation.x = -0.28), c(f, [0.048, -0.2, -0.14], [0.22, -0.38, 0.16]));
+    const S = l(f, u === 3 ? 0.004 : 0.038, u === 3 ? -0.176 : -0.157, u === 3 ? -0.176 : -0.164);
+    ((S.rotation.x = -0.28),
+      c(f, [u === 3 ? 0.02 : 0.048, u === 3 ? -0.215 : -0.2, u === 3 ? -0.155 : -0.14], [0.22, -0.38, 0.16]));
     const v = new Me();
     f.add(v);
-    const T = l(v, -0.033, -0.075, u === 1 ? -0.79 : -0.65, !0);
+    const T = l(v, u === 3 ? -0.052 : -0.033, u === 3 ? -0.196 : -0.075, u === 1 ? -0.79 : u === 3 ? -0.168 : -0.65, !0);
     ((T.rotation.z = 0.18),
-      c(v, [-0.043, -0.105, u === 1 ? -0.8 : -0.67], [-0.28, -0.36, -0.12], !0),
+      c(v, [u === 3 ? -0.06 : -0.043, u === 3 ? -0.226 : -0.105, u === 1 ? -0.8 : u === 3 ? -0.178 : -0.67], [-0.28, u === 3 ? -0.38 : -0.36, u === 3 ? -0.1 : -0.12], !0),
       vi(d),
       vi(p),
       _ && vi(_),
@@ -24628,19 +24717,19 @@ class Tv {
       (this.sequence = 0));
   }
   shot(t) {
-    const e = [2.45, 5.2, 3.9][t],
+    const e = [2.45, 5.2, 3.9, 2.05][t],
       n = Math.sin(++this.sequence * 2.399);
     ((this.pitchKick.v += e),
       (this.yawKick.v += n * e * 0.2),
       (this.rollKick.v += (n * 0.7 + 0.25) * e * 0.31),
-      (this.push.v += [1.3, 2.9, 2.1][t]));
+      (this.push.v += [1.3, 2.9, 2.1, 1.05][t]));
   }
   landImpact(t) {
     ((this.land.v -= ha(t * 0.2, 0.65, 2.4)), (this.pitchKick.v += ha(t * 0.065, 0.1, 0.7)));
   }
   update(t, { yaw: e, pitch: n, ads: r, sprint: s, velocityX: a, velocityZ: o, weapon: l }) {
     const c = Math.atan2(Math.sin(e - this.yaw), Math.cos(e - this.yaw)),
-      h = [1, 1.2, 1.35][l],
+      h = [1, 1.2, 1.35, 0.85][l],
       u = 1 - r * 0.76;
     (Ze(this.lagYaw, ha((-c / Math.max(t, 0.001)) * 0.032 * h, -0.13, 0.13) * u, 110 / h, 15, t),
       Ze(this.lagPitch, ha((-(n - this.pitch) / Math.max(t, 0.001)) * 0.026 * h, -0.1, 0.1) * u, 100 / h, 14, t),
@@ -25098,7 +25187,7 @@ class Pv {
       a.stop(s + t));
   }
   shot(t) {
-    let e = [1, 1.8, 1.5][t];
+    let e = [1, 1.8, 1.5, 0.78][t];
     (this.burst(0.12 * e, 0.55, 4e3),
       this.tone(145, 32, 0.19 * e, 0.5, "triangle"),
       this.tone(72, 25, 0.28 * e, 0.38),
@@ -25338,7 +25427,10 @@ let Ut = 0,
   yr = 0,
   zl = -10,
   kl = 0,
-  sn = 0;
+  sn = 0,
+  recoilDebtPitch = 0,
+  recoilDebtYaw = 0,
+  recoilSettle = 0;
 try {
   Pr = Number(localStorage.getItem("breach-best") || 0);
 } catch {}
@@ -25545,7 +25637,7 @@ function _c(i, t = "OPERATION BLACKSITE", e = 3) {
 }
 function nf() {
   (en++, (ms = 8 + en * 4), (Fa = 0), (gs = ms), (Sa = 0.2), (Mi = 0), (k.health = Math.min(100, k.health + 25)));
-  for (let i = 0; i < 3; i++) Cn[i] = Math.min(Oe[i].reserve, Cn[i] + Oe[i].mag * 2);
+  for (let i = 0; i < Oe.length; i++) Cn[i] = Math.min(Oe[i].reserve, Cn[i] + Oe[i].mag * 2);
   (_c(
     `WAVE ${String(en).padStart(2, "0")}`,
     en === 1 ? "WEAPONS FREE. KEEP MOVING." : "HOSTILE REINFORCEMENTS INBOUND",
@@ -25585,9 +25677,17 @@ function Vv() {
     Vi.models[Ut].userData.flash.scale.setScalar(Pe(0.7, 1.2) * (Ut === 1 ? 1.5 : 1)),
     Ue.shot(Ut),
     ce.shot(Ut),
-    (Ia += i.recoil * 30),
-    (Ua += Math.sin(ce.sequence * 2.399) * i.recoil * 4.2),
+    (Ia += i.recoil * 16),
+    (Ua += Math.sin(ce.sequence * 2.399) * i.recoil * 2.4),
     (In += i.kick * 0.055));
+  const Yh = 1 - On * 0.3,
+    Kh = i.recoil * RECOIL_AIM_PITCH[Ut] * Yh * Pe(0.86, 1.14),
+    Qh = Math.sin(ce.sequence * 2.399) * i.recoil * RECOIL_AIM_YAW[Ut] * Yh;
+  ((k.pitch = rn(k.pitch + Kh, -1.42, 1.42)),
+    (k.yaw += Qh),
+    (recoilDebtPitch += Kh * RECOIL_RECOVERY_SHARE),
+    (recoilDebtYaw += Qh * RECOIL_RECOVERY_SHARE),
+    (recoilSettle = RECOIL_SETTLE_DELAY));
   const t = new D(0.24, -0.21, -0.85).applyQuaternion(Qt.quaternion).add(Qt.position),
     e = new Map();
   let n = !1,
@@ -25765,6 +25865,7 @@ function qv() {
     (zl = -10),
     (Ce = Hn = Wn = 0),
     (Ma = Ia = ya = Ua = Na = 0),
+    (recoilDebtPitch = recoilDebtYaw = recoilSettle = 0),
     (Yi = -10),
     (On = 0),
     (bi = Ei = Xr = !1),
@@ -25891,7 +25992,7 @@ document.addEventListener("keydown", (i) => {
     !i.repeat &&
       (i.code === "KeyR" && sf(),
       i.code === "KeyF" && Ce <= 0 && (Wn = 2.6),
-      /^Digit[123]$/.test(i.code) && rf(Number(i.code.slice(-1)) - 1),
+      /^Digit[1234]$/.test(i.code) && rf(Number(i.code.slice(-1)) - 1),
       i.code === "Space" &&
         k.grounded &&
         k.slide <= 0 &&
@@ -25912,7 +26013,7 @@ window.addEventListener("blur", () => {
 window.addEventListener(
   "wheel",
   (i) => {
-    de === "playing" && (ci || Yn) && rf((Ut + (i.deltaY > 0 ? 1 : 2)) % 3);
+    de === "playing" && (ci || Yn) && rf((Ut + (i.deltaY > 0 ? 1 : Oe.length - 1)) % Oe.length);
   },
   { passive: !0 },
 );
@@ -25987,6 +26088,18 @@ function Yv(i) {
       velocityZ: k.vel.z,
       weapon: Ut,
     }));
+  if (recoilSettle > 0) recoilSettle = Math.max(0, recoilSettle - i);
+  else if (recoilDebtPitch !== 0 || recoilDebtYaw !== 0) {
+    const g = Math.min(1, i * RECOIL_RECOVERY_RATE),
+      _ = recoilDebtPitch * g,
+      d = recoilDebtYaw * g;
+    ((k.pitch = rn(k.pitch - _, -1.42, 1.42)),
+      (k.yaw -= d),
+      (recoilDebtPitch -= _),
+      (recoilDebtYaw -= d),
+      Math.abs(recoilDebtPitch) < 1e-5 && (recoilDebtPitch = 0),
+      Math.abs(recoilDebtYaw) < 1e-5 && (recoilDebtYaw = 0));
+  }
   const c = { x: Ma, v: Ia },
     h = { x: ya, v: Ua };
   if (
@@ -26027,7 +26140,7 @@ function Yv(i) {
     Kv(i, t, o));
 }
 function Kv(i, t, e) {
-  for (let d = 0; d < 3; d++) Vi.models[d].visible = d === Ut;
+  for (let d = 0; d < Oe.length; d++) Vi.models[d].visible = d === Ut;
   const n = Vi.models[Ut],
     r = n.userData,
     s = rn(ce.aim.x, 0, 1),
@@ -26049,7 +26162,7 @@ function Kv(i, t, e) {
       c * 0.19 -
       h * 0.5 -
       u * 0.035,
-    Hi(-0.46, Ut === 0 ? -0.05 : -0.29, s) + Na * (1 - s * 0.4) + ce.drive.x * a,
+    Hi(-0.46, Ut === 0 ? -0.05 : Ut === 3 ? -0.2 : -0.29, s) + Na * (1 - s * 0.4) + ce.drive.x * a,
   ),
     n.rotation.set(
       ce.lagPitch.x + ce.pitchKick.x * (1 - s * 0.32) + c * 0.36 - u * 0.3 + ce.land.x * 0.38,
@@ -26090,6 +26203,16 @@ function Kv(i, t, e) {
     (Wr.fov = Hi(65, 58, s)),
     Wr.updateProjectionMatrix());
 }
+const RANGED_HOLD_MIN = 7.5,
+  RANGED_HOLD_MAX = 15,
+  RANGED_BREAK_OFF = 6,
+  RANGED_AIM_WINDUP = 0.72,
+  RANGED_COOLDOWN_MIN = 1.7,
+  RANGED_COOLDOWN_MAX = 2.9,
+  RANGED_BASE_ACCURACY = 0.56,
+  RANGED_MISS_SPREAD = 2.1,
+  RANGED_DAMAGE = 8,
+  FLANK_STRENGTH = 0.85;
 function Zv(i) {
   ((Ho -= i), Ho <= 0 && (ef(), (Ho = 0.35)));
   for (let t = Je.length - 1; t >= 0; t--) {
@@ -26110,6 +26233,12 @@ function Zv(i) {
     let o = r / (a || 1),
       l = s / (a || 1);
     const c = zv(n, k.pos);
+    ((e.flank ??= Math.random() < 0.5 ? -1 : 1),
+      (e.flankTimer ??= Pe(1.2, 3.2)),
+      (e.aim ??= 0),
+      (e.aimAnchor ??= new D()),
+      (e.flankTimer -= i),
+      e.flankTimer <= 0 && ((e.flank = -e.flank), (e.flankTimer = Pe(1.6, 3.6))));
     if (!c) {
       const g = gc(n.x, n.z),
         _ = g % ge,
@@ -26139,7 +26268,16 @@ function Zv(i) {
         p = _ * _ + d * d;
       p < 1.3 && p > 0.001 && ((h += (_ / p) * 0.5), (u += (d / p) * 0.5));
     }
-    let m = e.ranged && a < 13 && a > 6 && c;
+    if (c) {
+      const g = e.flank * FLANK_STRENGTH * rn((a - 2.4) / 9, 0, 1) * (e.ranged ? 1.15 : 0.8),
+        _ = Math.cos(g),
+        d = Math.sin(g),
+        p = o * _ - l * d,
+        w = o * d + l * _;
+      ((o = p), (l = w));
+    }
+    let m = e.ranged && c && ((a < RANGED_HOLD_MAX && a > RANGED_HOLD_MIN) || e.aim > 0);
+    e.ranged && c && a < RANGED_BREAK_OFF && ((m = !1), (o = -o), (l = -l));
     const f = e.stagger > 0 ? 0.25 : e.speed;
     if (
       (a > 1.45 && !m && (Ba(n, (o + h) * f * i, (l + u) * f * i, e.heavy ? 0.45 : 0.35), (e.phase += i * f * 2.7)),
@@ -26152,16 +26290,40 @@ function Zv(i) {
         Math.abs(k.pos.y - 1.7) < 1.5 &&
         e.attack <= 0 &&
         (Xh(e.heavy ? 22 : 12), (e.attack = e.heavy ? 1.1 : 0.8), (e.arms[1].rotation.x = -1.9)),
-      e.ranged && c && a < 24 && a > 3 && e.attack <= 0)
+      e.ranged && c && a < 24 && a > 3)
     ) {
-      const g = n.clone().add(new D(0.2, 1.3, 0.3)),
-        _ = k.pos.clone().add(new D(Pe(-0.5, 0.5), Pe(-0.3, 0.3), 0));
-      (tf(g, _, !0),
-        xs(g, 5, 16760184, 1, 0.15, 0.09),
-        Ue.burst(0.11, 0.07, 1800),
-        Math.random() < 0.55 && (Math.hypot(k.vel.x, k.vel.z) < 6 || Math.random() < 0.45) && Xh(7),
-        (e.attack = Pe(1.2, 2.1)));
-    }
+      if (e.aim > 0) {
+        if (((e.aim -= i), e.aimAnchor.lerp(k.pos, Math.min(1, i * 2.1)), e.aim <= 0)) {
+          const g = n.clone().add(new D(0.2, 1.3, 0.3)),
+            _ = Math.hypot(k.vel.x, k.vel.z),
+            d =
+              RANGED_BASE_ACCURACY *
+              rn(1 - (a - 6) / 26, 0.35, 1) *
+              (_ > 6 ? 0.45 : _ > 2 ? 0.72 : 1) *
+              (k.slide > 0 ? 0.55 : 1),
+            p = Math.random() < d,
+            w = e.aimAnchor.clone().lerp(k.pos, 0.5);
+          (p
+            ? w.add(new D(Pe(-0.22, 0.22), Pe(-0.18, 0.18), Pe(-0.22, 0.22)))
+            : w.add(
+                new D(
+                  Pe(-RANGED_MISS_SPREAD, RANGED_MISS_SPREAD),
+                  Pe(-0.7, RANGED_MISS_SPREAD * 0.5),
+                  Pe(-RANGED_MISS_SPREAD, RANGED_MISS_SPREAD),
+                ),
+              ),
+            tf(g, w, !0),
+            xs(g, 5, 16760184, 1, 0.15, 0.09),
+            Ue.burst(0.11, 0.07, 1800),
+            p && Xh(RANGED_DAMAGE),
+            (e.attack = Pe(RANGED_COOLDOWN_MIN, RANGED_COOLDOWN_MAX)));
+        }
+      } else
+        e.attack <= 0 &&
+          ((e.aim = RANGED_AIM_WINDUP * (e.heavy ? 1.2 : 1) * Pe(0.85, 1.2)),
+          e.aimAnchor.copy(k.pos),
+          xs(n.clone().add(new D(0.2, 1.3, 0.3)), 2, 16733525, 0.6, 0.05, 0.05));
+    } else e.aim = 0;
   }
 }
 function qh(i) {
@@ -26202,7 +26364,7 @@ function qh(i) {
       e.group.position.distanceTo(k.pos) < 2)
     ) {
       if (e.type === "health") k.health = Math.min(100, k.health + 35);
-      else for (let n = 0; n < 3; n++) Cn[n] = Math.min(Oe[n].reserve, Cn[n] + Oe[n].mag);
+      else for (let n = 0; n < Oe.length; n++) Cn[n] = Math.min(Oe[n].reserve, Cn[n] + Oe[n].mag);
       (Ue.pickup(), (e.life = 0), Xn());
     }
     e.life <= 0 && (Se.remove(e.group), Mc(e), yi.splice(t, 1));
@@ -26317,6 +26479,9 @@ window.__BREACH__ = {
         y: 1.73 * (i.heavy ? 1.1 : 1),
         z: i.root.position.z,
         hp: i.hp,
+        ranged: !!i.ranged,
+        aim: i.aim || 0,
+        attack: i.attack || 0,
       })),
     };
   },
