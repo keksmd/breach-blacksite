@@ -25280,8 +25280,8 @@ function Cv(i, t, e) {
   }
   for (const [s, a] of ua) if (!n.has(s)) for (const o of a) o.count = 0;
 }
-const SCREAM_SAMPLE = "assets/scream-af877c06.mp3",
-  BLAST_SAMPLE = "assets/blast-785a873b.mp3";
+const SCREAM_SAMPLE = "assets/scream-d3126176.mp3",
+  BLAST_SAMPLE = "assets/blast-133e2da3.mp3";
 class Pv {
   constructor() {
     ((this.ctx = null), (this.volume = 0.65), (this.voices = []), (this.screamBuf = null), (this.blastBuf = null));
@@ -25853,7 +25853,6 @@ function spawnScreamer() {
   return (
     Je.push(a),
     xs(new D(e, 1.6, n), 16, BLOOD_BRIGHT, 2),
-    Ue.screamBuf || Ue.scream(Math.hypot(k.pos.x - e, k.pos.z - n)),
     _c("SCREAMER LOOSE", "UNSTABLE HOSTILE — DO NOT HUG", 2.6),
     a
   );
@@ -25887,16 +25886,14 @@ function detonateScreamer(i, t) {
 }
 function updateScreamer(i, t) {
   ((i.fuse -= t), (i.screamTimer -= t));
+  i.voice || (i.voice = Ue.screamLoop());
   if (i.screamTimer <= 0) {
-    ((i.screamTimer = Pe(1.1, 1.85)),
-      i.voice || Ue.scream(k.pos.distanceTo(i.root.position)),
-      (i.screamFlash = 0.9));
+    ((i.screamTimer = Pe(1.1, 1.85)), (i.screamFlash = 0.9));
   }
   i.screamFlash = Math.max(0, (i.screamFlash || 0) - t);
   const e = i.root.position,
     n = k.pos.distanceTo(e);
-  (i.voice || (i.voice = Ue.screamLoop()),
-    i.voice &&
+  (i.voice &&
       (i.voice.gain.gain.value = Hi(i.voice.gain.gain.value, rn(Math.pow(12 / (12 + n), 1.5), 0, 1) * 1.15, 1 - Math.exp(-t * 9))));
   i.repick = (i.repick || 0) - t;
   let r = i.wander.x - e.x,
