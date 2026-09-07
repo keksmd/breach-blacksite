@@ -24760,6 +24760,7 @@ function Ev(i) {
         support: v,
         opticLens: g,
         flashAlt: R ? R.getObjectByName("muzzleFlash") : null,
+        altGun: R,
         altShot: !1,
         muzzle: A.position.clone(),
         adsY: E,
@@ -26765,7 +26766,7 @@ function Kv(i, t, e) {
       c * 0.19 -
       h * 0.5 -
       u * 0.035,
-    Hi(-0.46, Ut === 0 ? -0.05 : Ut === 3 ? -0.2 : -0.29, s) + Na * (1 - s * 0.4) + ce.drive.x * a,
+    Hi(-0.46, Ut === 0 ? -0.05 : Ut === 3 ? -0.3 : -0.29, s) + Na * (1 - s * 0.4) + ce.drive.x * a,
   ),
     n.rotation.set(
       ce.lagPitch.x + ce.pitchKick.x * (1 - s * 0.32) + c * 0.36 - u * 0.3 + ce.land.x * 0.38,
@@ -26782,6 +26783,13 @@ function Kv(i, t, e) {
     (n.rotation.x -= o * 0.1),
     (n.position.y += o * 0.13),
     (n.position.z += o * 0.04));
+  if (r.altGun) {
+    ((r.gun.rotation.z = -0.06 * a),
+      (r.gun.rotation.y = -0.045 * a),
+      r.altGun.position.set(-0.243 - s * 0.2, 0.006 - s * 0.26, 0.012 + s * 0.06),
+      (r.altGun.rotation.z = 0.06 * a + s * 0.5),
+      (r.altGun.rotation.y = 0.045 * a));
+  }
   const g = Ce > 0 ? Math.sin(rn((l - 0.08) / 0.75, 0, 1) * Math.PI) : 0;
   if ((r.support.position.set(-g * 0.05, -g * 0.14, g * 0.33), r.magazine)) {
     const d = Ce > 0 ? Math.sin(rn((l - 0.12) / 0.65, 0, 1) * Math.PI) : 0;
