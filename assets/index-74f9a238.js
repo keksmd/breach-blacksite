@@ -25277,17 +25277,18 @@ function Cv(i, t, e) {
   }
   for (const [s, a] of ua) if (!n.has(s)) for (const o of a) o.count = 0;
 }
-const SCREAM_SAMPLE = "assets/scream-a1a3b787.mp3";
+const SCREAM_SAMPLE = "assets/scream-af877c06.mp3",
+  BLAST_SAMPLE = "assets/blast-785a873b.mp3";
 class Pv {
   constructor() {
-    ((this.ctx = null), (this.volume = 0.65), (this.voices = []), (this.screamBuf = null));
+    ((this.ctx = null), (this.volume = 0.65), (this.voices = []), (this.screamBuf = null), (this.blastBuf = null));
   }
   init() {
     if (this.ctx) {
       this.ctx.resume();
       return;
     }
-    this.loadScream();
+    this.loadSamples();
     ((this.ctx = new (window.AudioContext || window.webkitAudioContext)()),
       (this.master = this.ctx.createGain()),
       (this.master.gain.value = this.volume),
@@ -25296,14 +25297,25 @@ class Pv {
     const t = this.noise.getChannelData(0);
     for (let e = 0; e < t.length; e++) t[e] = Math.random() * 2 - 1;
   }
-  loadScream() {
-    if (this.screamBuf || this.screamPending) return;
-    this.screamPending = !0;
-    fetch(SCREAM_SAMPLE)
-      .then((r) => r.arrayBuffer())
-      .then((b) => this.ctx.decodeAudioData(b))
-      .then((b) => (this.screamBuf = b))
-      .catch(() => (this.screamPending = !1));
+  loadSamples() {
+    if (this.samplesPending) return;
+    this.samplesPending = !0;
+    for (const [key, url] of [
+      ["screamBuf", SCREAM_SAMPLE],
+      ["blastBuf", BLAST_SAMPLE],
+    ])
+      fetch(url)
+        .then((r) => r.arrayBuffer())
+        .then((b) => this.ctx.decodeAudioData(b))
+        .then((b) => (this[key] = b))
+        .catch(() => (this.samplesPending = !1));
+  }
+  playSample(buf, gain, rate = 1, delay = 0) {
+    if (!this.ctx || !buf) return;
+    const t = this.ctx.currentTime + delay,
+      src = this.ctx.createBufferSource(),
+      g = this.ctx.createGain();
+    ((src.buffer = buf), (src.playbackRate.value = rate), (g.gain.value = gain), src.connect(g), g.connect(this.master), src.start(t));
   }
   screamLoop() {
     if (!this.ctx || !this.screamBuf) return null;
@@ -25504,7 +25516,14 @@ class Pv {
       rasp.start(t, Math.random()),
       rasp.stop(t + dur));
   }
-  explosion() {
+  explosion(dist = 0) {
+    const vol = rn(Math.pow(16 / (16 + dist), 1.3), 0.08, 1);
+    if (this.blastBuf) {
+      (this.playSample(this.blastBuf, 0.95 * vol, Pe(0.94, 1.05)),
+        this.tone(64, 26, 1.2, 0.3 * vol),
+        this.sweepNoise(1.6, 0.06 * vol, 520, 90, 0.12));
+      return;
+    }
     (this.burst(0.9, 0.5, 900),
       this.sweepNoise(0.06, 0.55, 9000, 1800),
       this.tone(160, 32, 0.75, 0.42, "triangle"),
@@ -25845,7 +25864,7 @@ function detonateScreamer(i, t) {
     Rr.burst(e, new D(0, 1, 0), "body", 3),
     spillBlood(i.root.position, 2.6),
     spillBlood(i.root.position, 1.9),
-    Ue.explosion());
+    Ue.explosion(k.pos.distanceTo(i.root.position)));
   for (const n of Je) {
     if (!n.alive || n === i) continue;
     const r = n.root.position.distanceTo(i.root.position);
