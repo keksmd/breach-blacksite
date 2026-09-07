@@ -25277,15 +25277,17 @@ function Cv(i, t, e) {
   }
   for (const [s, a] of ua) if (!n.has(s)) for (const o of a) o.count = 0;
 }
+const SCREAM_SAMPLE = "assets/scream-a1a3b787.mp3";
 class Pv {
   constructor() {
-    ((this.ctx = null), (this.volume = 0.65));
+    ((this.ctx = null), (this.volume = 0.65), (this.voices = []), (this.screamBuf = null));
   }
   init() {
     if (this.ctx) {
       this.ctx.resume();
       return;
     }
+    this.loadScream();
     ((this.ctx = new (window.AudioContext || window.webkitAudioContext)()),
       (this.master = this.ctx.createGain()),
       (this.master.gain.value = this.volume),
@@ -25293,6 +25295,42 @@ class Pv {
       (this.noise = this.ctx.createBuffer(1, this.ctx.sampleRate * 2, this.ctx.sampleRate)));
     const t = this.noise.getChannelData(0);
     for (let e = 0; e < t.length; e++) t[e] = Math.random() * 2 - 1;
+  }
+  loadScream() {
+    if (this.screamBuf || this.screamPending) return;
+    this.screamPending = !0;
+    fetch(SCREAM_SAMPLE)
+      .then((r) => r.arrayBuffer())
+      .then((b) => this.ctx.decodeAudioData(b))
+      .then((b) => (this.screamBuf = b))
+      .catch(() => (this.screamPending = !1));
+  }
+  screamLoop() {
+    if (!this.ctx || !this.screamBuf) return null;
+    const src = this.ctx.createBufferSource(),
+      g = this.ctx.createGain();
+    ((src.buffer = this.screamBuf),
+      (src.loop = !0),
+      (src.playbackRate.value = Pe(0.93, 1.08)),
+      (g.gain.value = 0),
+      src.connect(g),
+      g.connect(this.master),
+      src.start(this.ctx.currentTime, Math.random() * this.screamBuf.duration));
+    const voice = { src: src, gain: g, stop: () => {} };
+    ((voice.stop = () => {
+      const i = this.voices.indexOf(voice);
+      (i >= 0 && this.voices.splice(i, 1),
+        g.gain.cancelScheduledValues(this.ctx.currentTime),
+        g.gain.setTargetAtTime(0, this.ctx.currentTime, 0.02));
+      try {
+        src.stop(this.ctx.currentTime + 0.12);
+      } catch {}
+    }),
+      this.voices.push(voice));
+    return voice;
+  }
+  stopScreams() {
+    for (const v of [...this.voices]) v.stop();
   }
   setVolume(t) {
     ((this.volume = t), this.master && (this.master.gain.value = t));
@@ -25793,13 +25831,13 @@ function spawnScreamer() {
   return (
     Je.push(a),
     xs(new D(e, 1.6, n), 16, BLOOD_BRIGHT, 2),
-    Ue.scream(Math.hypot(k.pos.x - e, k.pos.z - n)),
+    Ue.screamBuf || Ue.scream(Math.hypot(k.pos.x - e, k.pos.z - n)),
     _c("SCREAMER LOOSE", "UNSTABLE HOSTILE — DO NOT HUG", 2.6),
     a
   );
 }
 function detonateScreamer(i, t) {
-  ((i.alive = !1), Se.remove(i.root));
+  ((i.alive = !1), i.voice && (i.voice.stop(), (i.voice = null)), Se.remove(i.root));
   const e = i.root.position.clone().setY(1);
   (bloodSpray(e, new D(0, 1, 0), 3.4),
     xs(e, 40, BLOOD_BRIGHT, 6, 0.6, 0.12),
@@ -25828,11 +25866,16 @@ function detonateScreamer(i, t) {
 function updateScreamer(i, t) {
   ((i.fuse -= t), (i.screamTimer -= t));
   if (i.screamTimer <= 0) {
-    ((i.screamTimer = Pe(1.1, 1.85)), Ue.scream(k.pos.distanceTo(i.root.position)), (i.screamFlash = 0.9));
+    ((i.screamTimer = Pe(1.1, 1.85)),
+      i.voice || Ue.scream(k.pos.distanceTo(i.root.position)),
+      (i.screamFlash = 0.9));
   }
   i.screamFlash = Math.max(0, (i.screamFlash || 0) - t);
   const e = i.root.position,
     n = k.pos.distanceTo(e);
+  (i.voice || (i.voice = Ue.screamLoop()),
+    i.voice &&
+      (i.voice.gain.gain.value = Hi(i.voice.gain.gain.value, rn(Math.pow(12 / (12 + n), 1.5), 0, 1) * 1.15, 1 - Math.exp(-t * 9))));
   i.repick = (i.repick || 0) - t;
   let r = i.wander.x - e.x,
     s = i.wander.z - e.z,
@@ -26357,6 +26400,7 @@ function Xn() {
     Et("lowhp").classList.toggle("crit", k.health > 0 && k.health <= 24));
 }
 function qv() {
+  Ue.stopScreams();
   for (const i of Je) Se.remove(i.root);
   for (const i of li) Se.remove(i.root);
   for (const i of yi) (Se.remove(i.group), Mc(i));
@@ -26423,6 +26467,7 @@ function $a() {
     ((de = "paused"),
     (bi = Ei = !1),
     Fe.clear(),
+    Ue.ctx && Ue.ctx.suspend(),
     (Et("pause-title").innerHTML = "TAKE A<br>BREATHER."),
     (retryWave = 1),
     (Et("pause-copy").textContent = "The fight can wait."),
@@ -26444,6 +26489,7 @@ Et("quit").onclick = () => {
     Et("pause").classList.add("hidden"),
     Et("hud").classList.add("hidden"),
     Et("menu").classList.remove("hidden"));
+  Ue.stopScreams();
   for (const i of Je) Se.remove(i.root);
   for (const i of li) Se.remove(i.root);
   for (const i of yi) (Se.remove(i.group), Mc(i));
