@@ -25382,55 +25382,89 @@ class Pv {
     let e = [1, 1.8, 1.5, 0.78][t];
     (this.burst(0.12 * e, 0.55, 4e3),
       this.sweepNoise(0.028, 0.3, 9000, 2600),
-      this.tone(145, 32, 0.19 * e, 0.5, "triangle"),
-      this.tone(72, 25, 0.28 * e, 0.38),
+      this.tone(124, 88, 0.13 * e, 0.5, "triangle"),
+      this.tone(66, 48, 0.22 * e, 0.38),
       this.burst(0.5 * e, 0.12, 900, 0.025),
       t === 1 && (this.sweepNoise(0.07, 0.16, 2600, 420, 0.34), this.sweepNoise(0.05, 0.1, 5200, 1400, 0.42)));
   }
-  scream() {
+  scream(dist = 0) {
     if (!this.ctx) return;
-    const t = this.ctx.currentTime,
-      e = this.ctx.createGain(),
-      n = this.ctx.createWaveShaper(),
-      r = new Float32Array(1024);
-    for (let a = 0; a < 1024; a++) {
-      const o = (a / 1023) * 2 - 1;
-      r[a] = Math.tanh(o * 3.4);
+    const vol = rn(Math.pow(10 / (10 + dist), 1.35), 0.05, 1),
+      t = this.ctx.currentTime,
+      dur = 1.4,
+      shaper = this.ctx.createWaveShaper(),
+      curve = new Float32Array(1024);
+    for (let i = 0; i < 1024; i++) {
+      const x = (i / 1023) * 2 - 1;
+      curve[i] = Math.tanh(x * 5.2);
     }
-    ((n.curve = r),
-      (n.oversample = "2x"),
-      e.gain.setValueAtTime(1e-4, t),
-      e.gain.exponentialRampToValueAtTime(0.42, t + 0.07),
-      e.gain.setValueAtTime(0.42, t + 0.62),
-      e.gain.exponentialRampToValueAtTime(1e-4, t + 1.15),
-      n.connect(e),
-      e.connect(this.master));
-    const s = this.ctx.createOscillator(),
-      l = this.ctx.createGain();
-    ((s.frequency.value = 14), (l.gain.value = 46), s.connect(l), s.start(t), s.stop(t + 1.15));
-    for (const a of [0.5, 1, 1.5, 2.01, 2.98]) {
-      const o = this.ctx.createOscillator(),
-        c = this.ctx.createBiquadFilter(),
-        h = this.ctx.createGain();
-      ((o.type = "sawtooth"),
-        o.frequency.setValueAtTime(300 * a, t),
-        o.frequency.exponentialRampToValueAtTime(720 * a, t + 0.12),
-        o.frequency.exponentialRampToValueAtTime(430 * a, t + 0.8),
-        o.frequency.exponentialRampToValueAtTime(180 * a, t + 1.15),
-        (c.type = "bandpass"),
-        (c.frequency.value = 900 + a * 620),
-        (c.Q.value = 2.2),
-        (h.gain.value = 0.5 / (0.7 + a)),
-        l.connect(o.frequency),
-        o.connect(c),
-        c.connect(h),
-        h.connect(n),
-        o.start(t),
-        o.stop(t + 1.15));
+    ((shaper.curve = curve), (shaper.oversample = "4x"));
+    const out = this.ctx.createGain();
+    (out.gain.setValueAtTime(1e-4, t),
+      out.gain.exponentialRampToValueAtTime(0.78 * vol, t + 0.09),
+      out.gain.setValueAtTime(0.78 * vol, t + 0.86),
+      out.gain.exponentialRampToValueAtTime(1e-4, t + dur),
+      out.connect(this.master));
+    const vib = this.ctx.createOscillator(),
+      vibAmt = this.ctx.createGain(),
+      jit = this.ctx.createOscillator(),
+      jitAmt = this.ctx.createGain();
+    ((vib.frequency.value = 6.4),
+      (vibAmt.gain.value = 26),
+      vib.connect(vibAmt),
+      (jit.type = "sawtooth"),
+      (jit.frequency.value = 33),
+      (jitAmt.gain.value = 11),
+      jit.connect(jitAmt),
+      vib.start(t),
+      vib.stop(t + dur),
+      jit.start(t),
+      jit.stop(t + dur));
+    for (const det of [1, 1.011, 0.988]) {
+      const osc = this.ctx.createOscillator();
+      ((osc.type = "sawtooth"),
+        osc.frequency.setValueAtTime(250 * det, t),
+        osc.frequency.exponentialRampToValueAtTime(700 * det, t + 0.15),
+        osc.frequency.exponentialRampToValueAtTime(630 * det, t + 0.78),
+        osc.frequency.exponentialRampToValueAtTime(480 * det, t + 1.08),
+        osc.frequency.exponentialRampToValueAtTime(190 * det, t + dur),
+        vibAmt.connect(osc.frequency),
+        jitAmt.connect(osc.frequency),
+        osc.connect(shaper),
+        osc.start(t),
+        osc.stop(t + dur));
     }
-    (this.sweepNoise(1.1, 0.13, 3400, 900, 0.02, "bandpass", 0.8),
-      this.sweepNoise(0.5, 0.09, 900, 260, 0.6),
-      this.tone(150, 68, 0.9, 0.09, "triangle", 0.03));
+    for (const [freq, q, amp] of [
+      [720, 7, 1],
+      [1150, 8, 0.6],
+      [2500, 6, 0.34],
+      [3500, 5, 0.16],
+    ]) {
+      const bp = this.ctx.createBiquadFilter(),
+        g = this.ctx.createGain();
+      ((bp.type = "bandpass"),
+        (bp.frequency.value = freq),
+        (bp.Q.value = q),
+        (g.gain.value = amp),
+        shaper.connect(bp),
+        bp.connect(g),
+        g.connect(out));
+    }
+    const rasp = this.ctx.createBufferSource(),
+      raspBp = this.ctx.createBiquadFilter(),
+      raspGain = this.ctx.createGain();
+    ((rasp.buffer = this.noise),
+      (raspBp.type = "bandpass"),
+      (raspBp.frequency.value = 1900),
+      (raspBp.Q.value = 1.1),
+      raspGain.gain.setValueAtTime(1e-4, t),
+      raspGain.gain.exponentialRampToValueAtTime(0.22, t + 0.1),
+      raspGain.gain.exponentialRampToValueAtTime(1e-4, t + dur),
+      rasp.connect(raspBp),
+      raspBp.connect(raspGain),
+      raspGain.connect(out),
+      rasp.start(t, Math.random()),
+      rasp.stop(t + dur));
   }
   explosion() {
     (this.burst(0.9, 0.5, 900),
@@ -25443,44 +25477,45 @@ class Pv {
   gore(t = 1) {
     (this.sweepNoise(0.22, 0.2 * t, 1500, 180),
       this.sweepNoise(0.4, 0.09 * t, 520, 120, 0.05),
-      this.tone(105, 42, 0.18, 0.1 * t, "triangle"));
+      this.tone(98, 74, 0.12, 0.1 * t, "triangle"));
   }
   knife() {
     (this.sweepNoise(0.12, 0.15, 6800, 1100),
       this.sweepNoise(0.18, 0.22, 1300, 210, 0.05),
-      this.tone(145, 58, 0.15, 0.09, "triangle", 0.05));
+      this.sweepNoise(0.1, 0.19, 3200, 780, 0.04),
+      this.tone(112, 92, 0.09, 0.08, "sine", 0.045));
   }
   enemyShot(t = 0, e = 12) {
     const n = rn(1 - e / 40, 0.22, 1);
     (this.sweepNoise(0.085, 0.4 * n, t ? 5400 : 6400, t ? 620 : 1000),
-      this.tone(t ? 125 : 170, 46, 0.13, 0.17 * n, "triangle"),
-      this.tone(t ? 62 : 82, 30, 0.2, 0.11 * n),
+      this.tone(t ? 118 : 152, t ? 88 : 112, 0.11, 0.17 * n, "triangle"),
+      this.tone(t ? 58 : 76, t ? 44 : 58, 0.17, 0.11 * n),
       this.sweepNoise(0.45, 0.085 * n, 950, 190, 0.04));
   }
   hit(t, e) {
     (this.sweepNoise(0.09, 0.28, t ? 2600 : 900, t ? 520 : 150),
-      this.tone(t ? 130 : 88, 46, 0.09, 0.11, "triangle"),
-      e && (this.sweepNoise(0.26, 0.34, 2600, 240, 0.008), this.tone(120, 52, 0.22, 0.13, "triangle", 0.01)));
+      this.tone(t ? 124 : 86, t ? 98 : 66, 0.07, 0.11, "triangle"),
+      e && (this.sweepNoise(0.26, 0.34, 2600, 240, 0.008), this.tone(106, 80, 0.15, 0.13, "triangle", 0.01)));
   }
   step(t) {
-    (this.burst(0.065, t ? 0.055 : 0.03, 500), this.tone(65, 30, 0.08, 0.02));
+    (this.burst(0.065, t ? 0.055 : 0.03, 500), this.tone(60, 47, 0.07, 0.02));
   }
   reload() {
     (this.burst(0.05, 0.2, 3400),
       this.sweepNoise(0.035, 0.22, 5200, 1400, 0.02),
       this.burst(0.08, 0.13, 3200, 0.65),
       this.sweepNoise(0.04, 0.26, 4200, 900, 1.12),
-      this.tone(120, 62, 0.09, 0.1, "triangle", 1.14));
+      this.burst(0.045, 0.12, 2200, 1.14));
   }
   hurt(t = 12) {
     (this.sweepNoise(0.2, 0.32, 950, 130),
-      this.tone(82, 38, 0.3, 0.22),
+      this.tone(76, 60, 0.24, 0.22),
       this.voice(t > 22 ? 0.52 : 0.34, t > 22 ? 185 : 235, 105, 0.11, 0.02, 5, 1150),
       t > 22 && this.sweepNoise(1.1, 0.03, 4200, 3200, 0.06, "bandpass", 6));
   }
   heartbeat(t = 1) {
-    (this.tone(58, 30, 0.17, 0.19 * t, "sine"),
-      this.tone(46, 26, 0.22, 0.14 * t, "sine", 0.19),
+    (this.tone(58, 44, 0.17, 0.19 * t, "sine"),
+      this.tone(46, 36, 0.22, 0.14 * t, "sine", 0.19),
       this.sweepNoise(0.09, 0.03 * t, 220, 70));
   }
   wave() {
@@ -25490,7 +25525,7 @@ class Pv {
       this.tone(120, 82, 0.9, 0.12, "triangle", 0.35));
   }
   pickup() {
-    (this.sweepNoise(0.06, 0.16, 2600, 700), this.tone(190, 120, 0.1, 0.09, "triangle", 0.01));
+    (this.sweepNoise(0.06, 0.16, 2600, 700), this.tone(148, 126, 0.07, 0.08, "triangle", 0.01));
   }
 }
 const Dn = 180;
@@ -25758,7 +25793,7 @@ function spawnScreamer() {
   return (
     Je.push(a),
     xs(new D(e, 1.6, n), 16, BLOOD_BRIGHT, 2),
-    Ue.scream(),
+    Ue.scream(Math.hypot(k.pos.x - e, k.pos.z - n)),
     _c("SCREAMER LOOSE", "UNSTABLE HOSTILE — DO NOT HUG", 2.6),
     a
   );
@@ -25793,7 +25828,7 @@ function detonateScreamer(i, t) {
 function updateScreamer(i, t) {
   ((i.fuse -= t), (i.screamTimer -= t));
   if (i.screamTimer <= 0) {
-    ((i.screamTimer = Pe(1.25, 2.1)), Ue.scream(), (i.screamFlash = 0.9));
+    ((i.screamTimer = Pe(1.1, 1.85)), Ue.scream(k.pos.distanceTo(i.root.position)), (i.screamFlash = 0.9));
   }
   i.screamFlash = Math.max(0, (i.screamFlash || 0) - t);
   const e = i.root.position,
