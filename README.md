@@ -5,7 +5,7 @@
 Fork of `alesha-pro/bench-portal @ 2fa5c82` → `games/breach-blacksite-astra`.
 
 Static Three.js horde-survival FPS. No build step: `index.html` + prebuilt bundle in `assets/`.
-Upstream ships only build output, so tuning happens directly in `assets/index-1967ccc8.js`
+Upstream ships only build output, so tuning happens directly in `assets/index-166973e5.js`
 (game logic lives in the tail of the file) and in `assets/index-49044fd1.css` / `index.html`
 (both unminified-friendly).
 
@@ -92,11 +92,12 @@ kill or team bonus. Each head samples with 10 % uniform exploration. Weights per
 
 The menu's second button, TEAM DEATHMATCH 10v10, gives each team one spawn: ALPHA in the
 south-east pocket behind the MAINTENANCE block (the DANGER / LIVE POWER sign, around
-x 30 z 28, spread 2.5 x 3 m), BRAVO behind the STRIX / LOGISTICS container north-west
-of the yard (around x -15 z -14, spread 3 x 1.5 m). The pair was picked by sweeping the
-collider map with the bots' own line-of-sight test: no point of one spawn sees any point
-of the other, and a bot has to walk about 17 m out of either spawn before the other spawn
-comes into view. You are on ALPHA with 9 bots, start in that pocket facing west;
+x 30 z 28, spread 2.5 x 3 m), BRAVO in the gut behind BAY 03: the 3 m corridor between
+the bay's west face and the map wall (around x -33 z -29, spread 0.8 x 3 m, the only way
+out is south). The pair was picked by sweeping the collider map with the bots' own
+line-of-sight test: no point of one spawn sees any point of the other, BRAVO walks about
+20 m out of the gut before ALPHA's spawn comes into view and ALPHA about 55 m before it
+sees BRAVO's. You are on ALPHA with 9 bots, start in that pocket facing west;
 BRAVO fields 10. 3 of every 10 bots per team carry only the knife and run at 6.9 m/s
 (between your walk and sprint); the rest are soldiers with a rifle drawn at random from
 your own weapon table (MK18, M590, MK14, P226), all driven by the same RL nets as
@@ -141,13 +142,14 @@ not touch the survival save.
 ## Zone control (local only)
 
 The third menu button, ZONE CONTROL 10v10, plays the same teams and spawns with one
-objective: a 7 m circle at x 9 z 7 in the middle of the yard (translucent cylinder with two
+objective: a 7 m circle at x -3 z -1 in the middle of the yard (translucent cylinder with two
 rings; on the minimap a dashed circle in the colour of whoever leads). Each team has its own
 percentage. While at least one member of a team stands inside, that team's counter climbs
 at 100 % per 60 s; if both teams are inside, both climb. The first to 100 % takes the
 round. Nobody stays dead: bots redeploy at their own spawn 5 s after dying, and so do you
-(the HUD counts down `REDEPLOY IN 5s`). The zone sits 29.7 m of walking from BRAVO's spawn
-and 31.9 m from ALPHA's, so the first contact is at the ring, not in a corridor. RL bots
+(the HUD counts down `REDEPLOY IN 5s`). The zone sits 38 m of walking from either spawn
+(the centre was swept for equal path length once BRAVO moved into the gut), so the first
+contact is at the ring, not in a corridor, and a respawned bot needs a real walk back. RL bots
 earn +0.05 per decision while inside the circle on top of the usual hit / damage rewards.
 `?auto=zone` runs it headless, `__BREACH__.start(2)` from script, and
 `__BREACH__.state.team` reports `mode`, `cap` (both percentages) and `queue` (bots waiting
