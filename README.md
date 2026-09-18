@@ -5,7 +5,7 @@
 Fork of `alesha-pro/bench-portal @ 2fa5c82` → `games/breach-blacksite-astra`.
 
 Static Three.js horde-survival FPS. No build step: `index.html` + prebuilt bundle in `assets/`.
-Upstream ships only build output, so tuning happens directly in `assets/index-442dcc9f.js`
+Upstream ships only build output, so tuning happens directly in `assets/index-df1d2e24.js`
 (game logic lives in the tail of the file) and in `assets/index-49044fd1.css` / `index.html`
 (both unminified-friendly).
 
@@ -90,8 +90,9 @@ kill or team bonus. Each head samples with 10 % uniform exploration. Weights per
 
 The menu's second button, TEAM DEATHMATCH 10v10, splits the map: ALPHA spawns along the
 north edge (z > 0), BRAVO along the south (z < 0). You are on ALPHA with 9 bots; BRAVO
-fields 10. Each team is 4 melee, 2 heavies, 4 shooters, all driven by the same RL nets as
-survival. Blue marker cube = ALPHA, green = BRAVO.
+fields 10. Every bot is a soldier with a rifle drawn at random from your own weapon table
+(MK18, M590, MK14, P226), driven by the same RL nets as survival. Blue marker cube = ALPHA,
+green = BRAVO.
 
 Bots pick the nearest living enemy across both teams (the player counts for BRAVO) and
 fight it with the same melee / ranged code that survival uses against you; the target's
@@ -107,9 +108,18 @@ next round starts with fresh teams. HUD shows `ALPHA n · m BRAVO` and the round
 Bot-on-bot kills do not score or drop pickups; only your own kills do. Team mode does
 not touch the survival save.
 
-Stats are equal in team mode: every bot has 100 hp and runs at your walking speed (5.1
-m/s), shooters deal the MK18's 29 per hit and DMRs the MK14's 92, headshots are x2.5 for
-both sides instead of the survival mode's one-shot kill on bots.
+Stats are the same on both sides in team mode. Bots have 100 hp, run at your walking speed
+(5.1 m/s) and shoot with the weapon table's numbers: the same damage, pellet count, angular
+spread and range as the gun in your hands, headshots x2.5 for everyone (survival's one-shot
+kill on bots is off). Shotgun falloff is the same curve. A bot's trigger pull is the 0.72 s
+windup, then a burst at the weapon's own fire interval (4 rounds for the MK18, 2 for the
+MK14 / P226, 1 shell for the M590), then a 1.7-2.9 s pause; bots aim at the chest, so their
+headshots come from spread the same way yours do. Bots never reload and carry no ammo,
+which is the one asymmetry left; you can fire freely between their bursts. Both sides
+carry a knife: `F` swings it (40 damage, 1.9 m reach, 0.8 s cooldown; the old inspect
+animation is gone), and a bot inside 1.9 m of its target stabs instead of shooting. In
+team mode observation slot 3 holds the bot's own weapon index / 3 instead of the heavy
+flag.
 A round also ends after 240 s of sim time as a draw, so camping shooters cannot stall it.
 
 ## Collision
@@ -156,4 +166,7 @@ ready/version/bots/decisions/queued/sent.
 The bundle exposes `window.__BREACH__.state` — mode, wave, hostiles, score, health,
 weapon, ammo, fps, drawCalls, player position and live target list. `__BREACH__.player` is
 the live player object (`pos` is the eye, feet are `pos.y - height`) and `__BREACH__.colliders`
-the box list, so collision cases can be reproduced from the console by teleporting.
+the box list, `__BREACH__.enemies` the live bot list, `__BREACH__.weapons` the weapon table
+and `__BREACH__.shoot(bot, target)` fires one probe ray from a bot's muzzle at a target's
+chest with the bot's weapon spread (returns victim / head / dist), so collision and hit
+cases can be reproduced from the console by teleporting.

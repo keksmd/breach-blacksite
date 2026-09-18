@@ -25173,8 +25173,8 @@ function wv(i, t, rangedVariant = 0, headless = !1) {
     e
   );
 }
-function Av(i = !1, t = !1, screamer = !1) {
-  const e = screamer ? "screamer" : i ? "heavy" : t ? (Math.random() < 0.5 ? "ranged" : "ranged-dmr") : "assault";
+function Av(i = !1, t = !1, screamer = !1, kind = null) {
+  const e = screamer ? "screamer" : kind ? kind : i ? "heavy" : t ? (Math.random() < 0.5 ? "ranged" : "ranged-dmr") : "assault";
   zo.has(e) || zo.set(e, wv(i, t, e === "ranged-dmr" ? 1 : 0, screamer));
   const n = zo.get(e).clone(!0);
   n.userData.enemyKind = e;
@@ -25806,8 +25806,8 @@ const Je = [],
   yi = [],
   li = [],
   _s = [];
-function Lv(i, t, e = !1, n = !1, team = 1) {
-  const r = Av(e, n);
+function Lv(i, t, e = !1, n = !1, team = 1, weapon = -1) {
+  const r = Av(e, n, !1, weapon < 0 ? null : weapon === 2 ? "ranged-dmr" : "ranged");
   (r.root.position.set(i, 0, t), Se.add(r.root));
   const s = {
     ...r,
@@ -25823,6 +25823,7 @@ function Lv(i, t, e = !1, n = !1, team = 1) {
     alive: !0,
     rl: RL.ready,
     team,
+    weapon,
   };
   if (s.rl || TM.on) {
     const mk = new ee(new fc(0.26, 0.26, 0.26, 1, 0.04), new tn({ color: team === 0 ? 5197823 : 3800968 }));
@@ -26250,6 +26251,35 @@ const _r = new D(),
   Wh = new Rs(),
   Go = new Ti(),
   Hv = new D();
+let knifeAt = -10;
+function knifeSwing() {
+  if (de !== "playing" || Ce > 0 || sn - knifeAt < KNIFE_COOLDOWN) return;
+  ((knifeAt = sn), (Wn = KNIFE_SWING), Ue.knife(), (In += 0.03));
+  const fwd = new D(0, 0, -1).applyQuaternion(Qt.quaternion).setY(0).normalize();
+  let best = null,
+    bd = KNIFE_RANGE;
+  for (const g of Je) {
+    if (!g.alive || g.spawn > 0 || g.team === 0) continue;
+    const dx = g.root.position.x - k.pos.x,
+      dz = g.root.position.z - k.pos.z,
+      d = Math.hypot(dx, dz);
+    d < bd && (dx * fwd.x + dz * fwd.z) / (d || 1) > 0.4 && ((bd = d), (best = g));
+  }
+  if (!best) return;
+  const p = best.root.position.clone().setY(1.1),
+    kill = best.hp - KNIFE_DAMAGE <= 0;
+  ((best.hp -= KNIFE_DAMAGE),
+    (best.stagger = Math.max(best.stagger, 0.4)),
+    (best.hitPitchVel = (best.hitPitchVel || 0) - 2),
+    (best.knockback = fwd.clone().multiplyScalar(4 / (best.heavy ? 1.9 : 1))),
+    (best.lastHurt = sn),
+    Rr.burst(p, fwd.clone().negate(), best.heavy ? "armor" : "body", 1.2),
+    bloodSpray(p, fwd.clone().negate(), 1),
+    (Mr = kill ? 0.3 : 0.18),
+    (Et("hitmarker").style.color = kill ? "#e7ee8d" : "#fff"),
+    Ue.hit(!1, kill),
+    kill && Gv(best, !1, fwd));
+}
 function Vv() {
   Wn = 0;
   const i = Oe[Ut];
@@ -26647,7 +26677,7 @@ document.addEventListener("keydown", (i) => {
     !i.repeat &&
       (i.code === "KeyR" && sf(),
       (i.code === "KeyV" || i.code === "ShiftRight") && (Ei = !Ei),
-      i.code === "KeyF" && Ce <= 0 && (Wn = 2.6),
+      i.code === "KeyF" && knifeSwing(),
       /^Digit[1234]$/.test(i.code) && rf(Number(i.code.slice(-1)) - 1),
       i.code === "Space" &&
         k.grounded &&
@@ -26895,8 +26925,13 @@ const RANGED_HOLD_MIN = 7.5,
   RANGED_RAY_MAX = 140,
   TM_BOT_HP = 100,
   TM_BOT_SPEED = 5.1,
-  TM_SHOT_DAMAGE = 29,
-  TM_DMR_DAMAGE = 92,
+  TM_BURST_AUTO = 4,
+  TM_BURST_SEMI = 2,
+  KNIFE_DAMAGE = 40,
+  KNIFE_RANGE = 1.9,
+  KNIFE_COOLDOWN = 0.8,
+  KNIFE_SWING = 0.36,
+  TM_AIM_DROP = 0.6,
   TM_HEAD_MULT = 2.5,
   RL_RANGE_BONUS = 0.05,
   BODY_PARTS = [
@@ -26981,7 +27016,7 @@ function tmBotTarget(g) {
     slide: 0,
     reload: g.aim > 0 ? 1 : 0,
     ads: 0,
-    weapon: g.ranged ? (g.root.userData.enemyKind === "ranged-dmr" ? 2 / 3 : 1 / 3) : 0,
+    weapon: TM.on ? (g.weapon ?? 0) / 3 : g.ranged ? (g.root.userData.enemyKind === "ranged-dmr" ? 2 / 3 : 1 / 3) : 0,
     lastHurt: g.lastHurt ?? -10,
     ent: g,
   };
@@ -27030,10 +27065,8 @@ function tmRound() {
   for (let team = 0; team < 2; team++) {
     const bots = team === 0 && !TM.auto ? TM_SIZE - 1 : TM_SIZE;
     for (let j = 0; j < bots; j++) {
-      const p = tmSpawnPoint(team),
-        ranged = j % 5 === 3 || j % 5 === 4,
-        heavy = !ranged && j % 5 === 2;
-      Lv(p[0], p[1], heavy, ranged, team);
+      const p = tmSpawnPoint(team);
+      Lv(p[0], p[1], !1, !0, team, Math.floor(Math.random() * Oe.length));
     }
   }
   (k.pos.set(0, 1.7, 20), k.vel.set(0, 0, 0), (k.health = TM.auto ? 0 : 100), (k.lastHurt = -10));
@@ -27142,7 +27175,7 @@ function rlObs(e, a, c, bo, bl, T) {
     rn(a / 24, 0, 1),
     c ? 1 : 0,
     e.hp / e.maxHp,
-    e.heavy ? 1 : 0,
+    TM.on ? (e.weapon ?? 0) / 3 : e.heavy ? 1 : 0,
     e.stagger > 0 ? 1 : 0,
     rn(e.attack / 2, -1, 1),
     e.aim > 0 ? 1 : 0,
@@ -27247,13 +27280,12 @@ function rayBody(o, d, fx, fy, fz, scale, max) {
   }
   return t < max ? { t, head } : null;
 }
-function botShot(e, g, w) {
+function botShot(e, g, w, sp = RANGED_SPREAD * (e.heavy ? 1.3 : 1), max = RANGED_RAY_MAX) {
   const d = w.clone().sub(g).normalize(),
-    sp = RANGED_SPREAD * (e.heavy ? 1.3 : 1),
     rx = new D().crossVectors(d, new D(0, 1, 0)).normalize(),
     ry = new D().crossVectors(rx, d);
   d.addScaledVector(rx, Pe(-sp, sp)).addScaledVector(ry, Pe(-sp, sp)).normalize();
-  let t = rayBox(g, d, RANGED_RAY_MAX),
+  let t = rayBox(g, d, max),
     victim = null,
     head = !1;
   if (k.health > 0 && de === "playing") {
@@ -27267,6 +27299,31 @@ function botShot(e, g, w) {
   }
   const end = g.clone().addScaledVector(d, t);
   return (tf(g, end, !0), victim || xs(end, 6, 15059342, 1.6, 0.3, 0.06), { victim, head, dist: t });
+}
+function tmBotFire(e, g, w, a) {
+  const wp = Oe[e.weapon],
+    hits = new Map();
+  for (let p = 0; p < wp.pellets; p++) {
+    const shot = botShot(e, g, w, wp.spread, wp.range);
+    if (!shot.victim) continue;
+    const fall = wp.pellets > 1 ? rn(SHOTGUN_CLOSE_MULT - shot.dist / SHOTGUN_FALLOFF_METERS, 0.22, SHOTGUN_CLOSE_MULT) : 1,
+      dmg = shot.head ? wp.damage * TM_HEAD_MULT : wp.damage * fall,
+      key = shot.victim.ent ?? k,
+      h = hits.get(key) || { victim: shot.victim, dmg: 0, dist: shot.dist };
+    ((h.dmg += dmg), hits.set(key, h));
+  }
+  for (const h of hits.values()) (rlDealt(e, h.dmg, h.dist), tmHurt(h.victim, h.dmg, e));
+  (xs(g, 9, 16768443, 1.7, 0.12, 0.13),
+    xs(g, 5, 7566195, 0.9, 0.5, 0.16, new D(Pe(-0.4, 0.4), Pe(0.3, 1), Pe(-0.4, 0.4))),
+    Ue.enemyShot(e.weapon === 2 ? 1 : 0, a));
+}
+function tmBotBurst(e, i, a, T) {
+  if (!(e.burst > 0)) return;
+  if (((e.burstT -= i), e.burstT > 0)) return;
+  const wp = Oe[e.weapon],
+    g = e.root.position.clone().add(new D(0.2, 1.3, 0.3)),
+    w = e.aimAnchor.clone().addScaledVector(e.aimVel, RL_LEAD[e.rlAim ?? 0]);
+  (tmBotFire(e, g, w, a), e.burst--, (e.burstT = wp.interval));
 }
 function rlPush(e, obs) {
   e.rlStep && ((e.rlStep.o2 = obs), RL.queue.push(e.rlStep), (e.rlStep = null));
@@ -27299,33 +27356,41 @@ function rlFlush() {
     .catch(() => RL.queue.unshift(...batch));
 }
 function rlMelee(e, a, T) {
-  if (e.ranged || e.rlFire !== 1 || e.attack > 0) return;
+  if ((e.ranged && (!TM.on || a >= KNIFE_RANGE)) || e.rlFire !== 1 || e.attack > 0) return;
   e.rlFire = 0;
-  if (a < 1.9 && Math.abs(T.pos.y - 1.7) < 1.5) {
-    const dmg = e.heavy ? MELEE_HEAVY_DAMAGE : MELEE_DAMAGE;
-    (rlDealt(e, dmg), tmHurt(T, dmg, e), (e.attack = e.heavy ? 1.1 : 0.8), (e.melee = MELEE_SWING_TIME), T.ent || Ue.knife());
+  if (a < KNIFE_RANGE && Math.abs(T.pos.y - 1.7) < 1.5) {
+    const dmg = TM.on ? KNIFE_DAMAGE : e.heavy ? MELEE_HEAVY_DAMAGE : MELEE_DAMAGE;
+    (rlDealt(e, dmg), tmHurt(T, dmg, e), (e.attack = TM.on ? KNIFE_COOLDOWN : e.heavy ? 1.1 : 0.8), (e.melee = MELEE_SWING_TIME), T.ent || Ue.knife());
   } else ((e.attack = 0.5), (e.melee = MELEE_SWING_TIME));
 }
 function rlRanged(e, i, a, c, T) {
   if (!e.ranged) return;
   const n = e.root.position;
+  if (TM.on && e.burst > 0) {
+    tmBotBurst(e, i, a, T);
+    return;
+  }
   if (e.aim > 0) {
     if (((e.aim -= i), e.aim > 0)) return;
     const g = n.clone().add(new D(0.2, 1.3, 0.3)),
-      w = e.aimAnchor.clone().addScaledVector(e.aimVel, RL_LEAD[e.rlAim ?? 0]),
-      dmr = e.root.userData.enemyKind === "ranged-dmr",
-      base = TM.on ? (dmr ? TM_DMR_DAMAGE : TM_SHOT_DAMAGE) : dmr ? RANGED_DMR_DAMAGE : RANGED_DAMAGE,
+      w = e.aimAnchor.clone().addScaledVector(e.aimVel, RL_LEAD[e.rlAim ?? 0]);
+    if (TM.on) {
+      const wp = Oe[e.weapon];
+      (tmBotFire(e, g, w, a), (e.burst = (wp.auto ? TM_BURST_AUTO : wp.pellets > 1 ? 1 : TM_BURST_SEMI) - 1), (e.burstT = wp.interval), (e.attack = Pe(RANGED_COOLDOWN_MIN, RANGED_COOLDOWN_MAX)));
+      return;
+    }
+    const dmr = e.root.userData.enemyKind === "ranged-dmr",
       shot = botShot(e, g, w),
-      dmg = shot.head && TM.on ? base * TM_HEAD_MULT : base;
+      dmg = dmr ? RANGED_DMR_DAMAGE : RANGED_DAMAGE;
     (xs(g, 9, 16768443, 1.7, 0.12, 0.13),
       xs(g, 5, 7566195, 0.9, 0.5, 0.16, new D(Pe(-0.4, 0.4), Pe(0.3, 1), Pe(-0.4, 0.4))),
       Ue.enemyShot(dmr ? 1 : 0, a),
       shot.victim && (rlDealt(e, dmg, shot.dist), tmHurt(shot.victim, dmg, e)),
       (e.attack = Pe(RANGED_COOLDOWN_MIN, RANGED_COOLDOWN_MAX)));
-  } else if (e.rlFire === 1 && e.attack <= 0) {
+  } else if (e.rlFire === 1 && e.attack <= 0 && !(TM.on && a < KNIFE_RANGE)) {
     ((e.rlFire = 0),
       (e.aim = RANGED_AIM_WINDUP * (e.heavy ? 1.2 : 1)),
-      e.aimAnchor.copy(T.pos),
+      e.aimAnchor.copy(T.pos).setY(T.pos.y - (TM.on ? TM_AIM_DROP : 0)),
       (e.aimVel = new D(T.vel.x, 0, T.vel.z)),
       xs(n.clone().add(new D(0.2, 1.3, 0.3)), 2, 16733525, 0.6, 0.05, 0.05));
   }
@@ -27448,8 +27513,8 @@ function Zv(i) {
         : a < 1.9 &&
           Math.abs(T.pos.y - 1.7) < 1.5 &&
           e.attack <= 0 &&
-          (tmHurt(T, e.heavy ? MELEE_HEAVY_DAMAGE : MELEE_DAMAGE, e),
-            (e.attack = e.heavy ? 1.1 : 0.8),
+          (tmHurt(T, TM.on ? KNIFE_DAMAGE : e.heavy ? MELEE_HEAVY_DAMAGE : MELEE_DAMAGE, e),
+            (e.attack = TM.on ? KNIFE_COOLDOWN : e.heavy ? 1.1 : 0.8),
             (e.melee = MELEE_SWING_TIME),
             Ue.knife()),
       !(e.rl && RL.ready) && e.ranged && c && a < 24 && a > 3)
@@ -27474,17 +27539,19 @@ function Zv(i) {
                   Pe(-RANGED_MISS_SPREAD, RANGED_MISS_SPREAD),
                 ),
               ),
-            tf(g, w, !0),
-            xs(g, 9, 16768443, 1.7, 0.12, 0.13),
-            xs(g, 5, 7566195, 0.9, 0.5, 0.16, new D(Pe(-0.4, 0.4), Pe(0.3, 1), Pe(-0.4, 0.4))),
-            Ue.enemyShot(e.root.userData.enemyKind === "ranged-dmr" ? 1 : 0, a),
-            p && tmHurt(T, e.root.userData.enemyKind === "ranged-dmr" ? RANGED_DMR_DAMAGE : RANGED_DAMAGE, e),
+            TM.on
+              ? tmBotFire(e, g, w, a)
+              : (tf(g, w, !0),
+                xs(g, 9, 16768443, 1.7, 0.12, 0.13),
+                xs(g, 5, 7566195, 0.9, 0.5, 0.16, new D(Pe(-0.4, 0.4), Pe(0.3, 1), Pe(-0.4, 0.4))),
+                Ue.enemyShot(e.root.userData.enemyKind === "ranged-dmr" ? 1 : 0, a),
+                p && tmHurt(T, e.root.userData.enemyKind === "ranged-dmr" ? RANGED_DMR_DAMAGE : RANGED_DAMAGE, e)),
             (e.attack = Pe(RANGED_COOLDOWN_MIN, RANGED_COOLDOWN_MAX)));
         }
       } else
         e.attack <= 0 &&
           ((e.aim = RANGED_AIM_WINDUP * (e.heavy ? 1.2 : 1) * Pe(0.85, 1.2)),
-          e.aimAnchor.copy(T.pos),
+          e.aimAnchor.copy(T.pos).setY(T.pos.y - (TM.on ? TM_AIM_DROP : 0)),
           xs(n.clone().add(new D(0.2, 1.3, 0.3)), 2, 16733525, 0.6, 0.05, 0.05));
     } else e.rl && RL.ready ? rlRanged(e, i, a, c, T) : (e.aim = 0);
   }
@@ -27638,6 +27705,15 @@ window.__BREACH__ = {
   },
   get colliders() {
     return Gr.colliders;
+  },
+  get enemies() {
+    return Je;
+  },
+  get weapons() {
+    return Oe;
+  },
+  shoot(e, target) {
+    return botShot(e, e.root.position.clone().add(new D(0.2, 1.3, 0.3)), target.root.position.clone().setY(target.root.position.y + 1.7), Oe[e.weapon].spread, Oe[e.weapon].range);
   },
   get state() {
     return {
