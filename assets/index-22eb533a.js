@@ -25821,7 +25821,7 @@ function Lv(i, t, e = !1, n = !1) {
     stagger: 0,
     spawn: 0.5,
     alive: !0,
-    rl: RL.ready && (RL.counter++ & 1) === 1,
+    rl: RL.ready,
   };
   if (s.rl) {
     const mk = new ee(new fc(0.26, 0.26, 0.26, 1, 0.04), new tn({ color: 3800968 }));
@@ -26837,26 +26837,37 @@ const RANGED_HOLD_MIN = 7.5,
   FLANK_STRENGTH = 0.85;
 const RL_URL = "http://localhost:8790",
   RL_TICK = 0.5,
-  RL_EPS = 0.15,
-  RL_FLUSH_EVERY = 5,
-  RL_REFRESH_EVERY = 30,
+  RL_EPS = 0.1,
+  RL_FLUSH_EVERY = 1,
+  RL_REFRESH_EVERY = 3,
+  RL_STATS_EVERY = 10,
   RL_SAVE_EVERY = 4,
-  RL = { ready: !1, version: 0, policy: null, counter: 0, queue: [], sent: 0, decisions: 0, flushTimer: 0, refreshTimer: 0, saveTimer: 0, save: null, resume: !1, episodes: 0 };
-function rlInit() {
+  RL_OBS = 36,
+  RL_LEAD = [0, 0.15, 0.3, 0.45, 0.6, 0.75, 0.9],
+  RL = { ready: !1, version: 0, policy: null, queue: [], sent: 0, decisions: 0, flushTimer: 0, refreshTimer: 0, statsTimer: 0, saveTimer: 0, save: null, resume: !1, episodes: 0 };
+function rlFetch(path, ms) {
   const ctl = new AbortController(),
-    timer = setTimeout(() => ctl.abort(), 1200);
-  fetch(RL_URL + "/policy", { signal: ctl.signal })
+    timer = setTimeout(() => ctl.abort(), ms);
+  return fetch(RL_URL + path, { signal: ctl.signal })
     .then((r) => r.json())
-    .then((p) => ((RL.policy = p), (RL.version = p.version), (RL.ready = !0), rlStatus()))
-    .catch(() => {})
     .finally(() => clearTimeout(timer));
-  fetch(RL_URL + "/stats", { signal: ctl.signal })
-    .then((r) => r.json())
-    .then((st) => ((RL.episodes = st.episodes), rlStatus()))
+}
+function rlRefresh() {
+  rlFetch("/policy", 1200)
+    .then((p) => {
+      p.obs === RL_OBS && ((RL.policy = p), (RL.version = p.version), (RL.ready = !0), rlStatus());
+    })
     .catch(() => {});
+}
+function rlStats() {
+  rlFetch("/stats", 1200)
+    .then((st) => ((RL.episodes = st.transitions), rlStatus()))
+    .catch(() => {});
+}
+function rlInit() {
+  (rlRefresh(), rlStats());
   RL.save ||
-    fetch(RL_URL + "/save", { signal: ctl.signal })
-      .then((r) => r.json())
+    rlFetch("/save", 1200)
       .then((sv) => {
         ((RL.save = sv && sv.wave > 1 ? sv : {}), rlMenu());
       })
@@ -26864,7 +26875,7 @@ function rlInit() {
 }
 function rlStatus() {
   const el = Et("rl-status");
-  el && (el.textContent = RL.ready ? `RL v${RL.version} · ${Je.filter((i) => i.rl).length} BOTS · ${RL.episodes} EP` : "RL OFFLINE");
+  el && (el.textContent = RL.ready ? `RL u${RL.version} · ${Je.filter((i) => i.rl).length} BOTS · ${RL.episodes} STEPS` : "RL OFFLINE");
 }
 function rlMenu() {
   const el = document.querySelector(".deploy-sub b");
@@ -26890,12 +26901,23 @@ function rlCover(n, ox, oz) {
     z = n.z + oz;
   return mc(x, z, 0.35) ? 0 : zv({ x, z }, k.pos) ? 0 : 1;
 }
-function rlObs(e, a, c) {
+function rlProbe(n, ux, uz) {
+  for (let d = 0.5; d <= 3; d += 0.5) if (mc(n.x + ux * d, n.z + uz * d, 0.35)) return (d - 0.5) / 3;
+  return 1;
+}
+function rlDir(bo, bl, k8) {
+  const th = (k8 * Math.PI) / 4,
+    cs = Math.cos(th),
+    si = Math.sin(th);
+  return [bo * cs - bl * si, bo * si + bl * cs];
+}
+function rlObs(e, a, c, bo, bl) {
   const n = e.root.position,
     fwd = Qt.getWorldDirection(new D()),
     dx = (n.x - k.pos.x) / (a || 1),
     dz = (n.z - k.pos.z) / (a || 1),
-    pv = Math.hypot(k.vel.x, k.vel.z);
+    pv = Math.hypot(k.vel.x, k.vel.z),
+    flow = Jv(n, bo, bl);
   let allies = 0,
     nearest = 30;
   for (const g of Je) {
@@ -26903,7 +26925,7 @@ function rlObs(e, a, c) {
     const d = Math.hypot(g.root.position.x - n.x, g.root.position.z - n.z);
     (d < 6 && allies++, d < nearest && (nearest = d));
   }
-  return [
+  const obs = [
     rn(a / 24, 0, 1),
     c ? 1 : 0,
     e.hp / e.maxHp,
@@ -26927,21 +26949,24 @@ function rlObs(e, a, c) {
     rn(en / 10, 0, 1),
     rlCover(n, -dz * 1.3, dx * 1.3),
     rlCover(n, dz * 1.3, -dx * 1.3),
-    (e.rlAction ?? 0) / 5,
+    (e.rlMove ?? 0) / 8,
+    rn((k.vel.x * bo + k.vel.z * bl) / 8, -1, 1),
+    rn((k.vel.z * bo - k.vel.x * bl) / 8, -1, 1),
+    flow[0] * bo + flow[1] * bl,
+    flow[1] * bo - flow[0] * bl,
   ];
-}
-function rlAct(obs, p) {
-  const h = new Array(p.b1.length);
-  for (let j = 0; j < h.length; j++) {
-    let s = p.b1[j];
-    for (let i = 0; i < obs.length; i++) s += obs[i] * p.W1[i][j];
-    h[j] = Math.max(0, s);
+  for (let d = 0; d < 8; d++) {
+    const u = rlDir(bo, bl, d);
+    obs.push(rlProbe(n, u[0], u[1]));
   }
-  const z = new Array(p.b2.length);
+  return obs;
+}
+function rlSoftmax(h, W, b) {
+  const z = new Array(b.length);
   let mx = -1e9;
   for (let j = 0; j < z.length; j++) {
-    let s = p.b2[j];
-    for (let i = 0; i < h.length; i++) s += h[i] * p.W2[i][j];
+    let s = b[j];
+    for (let i = 0; i < h.length; i++) s += h[i] * W[i][j];
     ((z[j] = s), (mx = Math.max(mx, s)));
   }
   let tot = 0;
@@ -26951,28 +26976,38 @@ function rlAct(obs, p) {
   for (let j = 0; j < z.length; j++) if ((r -= z[j]) <= 0) return j;
   return z.length - 1;
 }
+function rlAct(obs, p) {
+  const h = new Array(p.b1.length);
+  for (let j = 0; j < h.length; j++) {
+    let s = p.b1[j];
+    for (let i = 0; i < obs.length; i++) s += obs[i] * p.W1[i][j];
+    h[j] = Math.max(0, s);
+  }
+  return { m: rlSoftmax(h, p.Wm, p.bm), f: rlSoftmax(h, p.Wf, p.bf), a: rlSoftmax(h, p.Wa, p.ba) };
+}
 function rlReward(e, x) {
-  e.traj && e.traj.length && (e.traj[e.traj.length - 1].r += x);
+  e.rlStep && (e.rlStep.r += x);
 }
 function rlDealt(e, x) {
   e.rl && rlReward(e, x * 0.1);
 }
-function rlDecide(e, a, c) {
+function rlPush(e, obs) {
+  e.rlStep && ((e.rlStep.o2 = obs), RL.queue.push(e.rlStep), (e.rlStep = null));
+}
+function rlDecide(e, a, c, bo, bl) {
   const taken = (e.rlHp ?? e.hp) - e.hp,
     closed = (e.rlDist ?? a) - a;
   ((e.rlHp = e.hp), (e.rlDist = a), rlReward(e, -taken * 0.03 - 0.01));
   e.ranged
     ? rlReward(e, c && a >= RANGED_HOLD_MIN && a <= RANGED_HOLD_MAX ? 0.02 : a < RANGED_BREAK_OFF ? -0.02 : 0)
     : rlReward(e, rn(closed, -1, 1) * 0.05);
-  const obs = rlObs(e, a, c),
-    act = rlAct(obs, e.ranged ? RL.policy.ranged : RL.policy.melee);
-  (e.traj || (e.traj = []), e.traj.push({ o: obs, a: act, r: 0 }), (e.rlAction = act), RL.decisions++);
+  const obs = rlObs(e, a, c, bo, bl);
+  rlPush(e, obs);
+  const act = rlAct(obs, e.ranged ? RL.policy.ranged : RL.policy.melee);
+  ((e.rlStep = { o: obs, m: act.m, f: act.f, a: act.a, r: 0, ranged: !!e.ranged, o2: null }), (e.rlMove = act.m), (e.rlFire = act.f), (e.rlAim = act.a), RL.decisions++);
 }
 function rlEnd(e, bonus) {
-  if (!e.rl || !e.traj) return;
-  (rlReward(e, bonus),
-    RL.queue.push({ steps: e.traj, ranged: !!e.ranged, heavy: !!e.heavy, wave: en, version: RL.version }),
-    (e.traj = null));
+  e.rl && e.rlStep && (rlReward(e, bonus), rlPush(e, null));
 }
 function rlEndAll(bonus) {
   for (const e of Je) rlEnd(e, bonus);
@@ -26981,20 +27016,73 @@ function rlEndAll(bonus) {
 function rlFlush() {
   if (!RL.queue.length) return;
   const batch = RL.queue.splice(0);
-  fetch(RL_URL + "/episodes", {
+  fetch(RL_URL + "/transitions", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ episodes: batch }),
+    body: JSON.stringify({ transitions: batch, wave: en }),
     keepalive: !0,
   })
     .then((r) => (r.ok ? (RL.sent += batch.length) : RL.queue.unshift(...batch)))
     .catch(() => RL.queue.unshift(...batch));
 }
+function rlMelee(e, a) {
+  if (e.ranged || e.rlFire !== 1 || e.attack > 0) return;
+  e.rlFire = 0;
+  if (a < 1.9 && Math.abs(k.pos.y - 1.7) < 1.5) {
+    const dmg = e.heavy ? MELEE_HEAVY_DAMAGE : MELEE_DAMAGE;
+    (rlDealt(e, dmg), Xh(dmg), (e.attack = e.heavy ? 1.1 : 0.8), (e.melee = MELEE_SWING_TIME), Ue.knife());
+  } else ((e.attack = 0.5), (e.melee = MELEE_SWING_TIME), rlReward(e, -0.05));
+}
+function rlRanged(e, i, a, c) {
+  if (!e.ranged) return;
+  const n = e.root.position;
+  if (e.aim > 0) {
+    if (((e.aim -= i), e.aim > 0)) return;
+    const g = n.clone().add(new D(0.2, 1.3, 0.3)),
+      w = e.aimAnchor.clone().addScaledVector(e.aimVel, RL_LEAD[e.rlAim ?? 0]).add(new D(Pe(-0.15, 0.15), Pe(-0.12, 0.12), Pe(-0.15, 0.15))),
+      dmr = e.root.userData.enemyKind === "ranged-dmr",
+      dmg = dmr ? RANGED_DMR_DAMAGE : RANGED_DAMAGE,
+      hit = c && a < 30 && Math.hypot(w.x - k.pos.x, w.z - k.pos.z) < 0.8 && Math.abs(w.y - k.pos.y) < 1.2;
+    (tf(g, w, !0),
+      xs(g, 9, 16768443, 1.7, 0.12, 0.13),
+      xs(g, 5, 7566195, 0.9, 0.5, 0.16, new D(Pe(-0.4, 0.4), Pe(0.3, 1), Pe(-0.4, 0.4))),
+      Ue.enemyShot(dmr ? 1 : 0, a),
+      hit ? (rlDealt(e, dmg), Xh(dmg)) : rlReward(e, -0.05),
+      (e.attack = Pe(RANGED_COOLDOWN_MIN, RANGED_COOLDOWN_MAX)));
+  } else if (e.rlFire === 1 && e.attack <= 0) {
+    ((e.rlFire = 0),
+      (e.aim = RANGED_AIM_WINDUP * (e.heavy ? 1.2 : 1)),
+      e.aimAnchor.copy(k.pos),
+      (e.aimVel = new D(k.vel.x, 0, k.vel.z)),
+      xs(n.clone().add(new D(0.2, 1.3, 0.3)), 2, 16733525, 0.6, 0.05, 0.05));
+  }
+}
 function rlTick(i) {
-  ((RL.flushTimer -= i), (RL.refreshTimer -= i), (RL.saveTimer -= i));
-  RL.flushTimer <= 0 && ((RL.flushTimer = RL_FLUSH_EVERY), rlFlush(), rlStatus());
-  RL.refreshTimer <= 0 && ((RL.refreshTimer = RL_REFRESH_EVERY), rlInit());
+  ((RL.flushTimer -= i), (RL.refreshTimer -= i), (RL.statsTimer -= i), (RL.saveTimer -= i));
+  RL.flushTimer <= 0 && ((RL.flushTimer = RL_FLUSH_EVERY), rlFlush());
+  RL.refreshTimer <= 0 && ((RL.refreshTimer = RL_REFRESH_EVERY), rlRefresh());
+  RL.statsTimer <= 0 && ((RL.statsTimer = RL_STATS_EVERY), rlStats(), RL.save || rlInit());
   RL.saveTimer <= 0 && RL.ready && de === "playing" && ((RL.saveTimer = RL_SAVE_EVERY), rlSave(rlSnapshot()));
+}
+function Jv(n, o, l) {
+  const g = gc(n.x, n.z),
+    _ = g % ge,
+    d = Math.floor(g / ge);
+  let p = ii[g],
+    w = _,
+    E = d;
+  for (let A = -1; A <= 1; A++)
+    for (let C = -1; C <= 1; C++) {
+      let x = _ + C,
+        M = d + A;
+      if (x < 0 || x >= ge || M < 0 || M >= ge) continue;
+      const P = M * ge + x;
+      (C && A && (Oa[d * ge + x] || Oa[M * ge + _])) || (ii[P] < p && ((p = ii[P]), (w = x), (E = M)));
+    }
+  const S = w * qr - Yr - n.x,
+    v = E * qr - Yr - n.z,
+    T = Math.hypot(S, v);
+  return T > 0.05 ? [S / T, v / T] : [o, l];
 }
 rlInit();
 function Zv(i) {
@@ -27028,24 +27116,8 @@ function Zv(i) {
       (e.flankTimer -= i),
       e.flankTimer <= 0 && ((e.flank = -e.flank), (e.flankTimer = Pe(1.6, 3.6))));
     if (!c) {
-      const g = gc(n.x, n.z),
-        _ = g % ge,
-        d = Math.floor(g / ge);
-      let p = ii[g],
-        w = _,
-        E = d;
-      for (let A = -1; A <= 1; A++)
-        for (let C = -1; C <= 1; C++) {
-          let x = _ + C,
-            M = d + A;
-          if (x < 0 || x >= ge || M < 0 || M >= ge) continue;
-          const P = M * ge + x;
-          (C && A && (Oa[d * ge + x] || Oa[M * ge + _])) || (ii[P] < p && ((p = ii[P]), (w = x), (E = M)));
-        }
-      let S = w * qr - Yr - n.x,
-        v = E * qr - Yr - n.z,
-        T = Math.hypot(S, v);
-      T > 0.05 && ((o = S / T), (l = v / T));
+      const fl = Jv(n, o, l);
+      ((o = fl[0]), (l = fl[1]));
     }
     let h = 0,
       u = 0;
@@ -27069,13 +27141,13 @@ function Zv(i) {
     let m = e.ranged && c && ((a < RANGED_HOLD_MAX && a > RANGED_HOLD_MIN) || e.aim > 0);
     e.ranged && c && a < RANGED_BREAK_OFF && ((m = !1), (o = -o), (l = -l));
     if (e.rl && RL.ready) {
-      ((e.rlTimer = (e.rlTimer ?? 0) - i), e.rlTimer <= 0 && ((e.rlTimer = RL_TICK), rlDecide(e, a, c)));
-      const act = e.rlAction ?? 0;
-      m = act === 4;
-      act === 0 && ((o = bo), (l = bl));
-      act === 1 && ((o = -bl), (l = bo));
-      act === 2 && ((o = bl), (l = -bo));
-      act === 3 && ((o = -bo), (l = -bl));
+      ((e.rlTimer = (e.rlTimer ?? 0) - i), e.rlTimer <= 0 && ((e.rlTimer = RL_TICK), rlDecide(e, a, c, bo, bl)));
+      const mv = e.rlMove ?? 0;
+      if (mv === 0) m = !0;
+      else {
+        const u = rlDir(bo, bl, mv - 1);
+        ((o = u[0]), (l = u[1]), (m = !1));
+      }
     }
     const f = e.stagger > 0 ? 0.25 : e.speed;
     if (
@@ -27086,15 +27158,16 @@ function Zv(i) {
       (e.root.rotation.y = Math.atan2(r, s)),
       (e.lookYaw = rn(Math.atan2(Math.sin(Math.atan2(k.pos.x - n.x, k.pos.z - n.z) - e.root.rotation.y), Math.cos(Math.atan2(k.pos.x - n.x, k.pos.z - n.z) - e.root.rotation.y)), -0.7, 0.7)),
       Rv(e, i, a > 1.45 && !m, e.attack > 0.65 && a < 1.9, !e.heavy && !e.ranged && a > 7 && e.speed > 3.2 && e.stagger <= 0),
-      a < 1.9 &&
-        Math.abs(k.pos.y - 1.7) < 1.5 &&
-        e.attack <= 0 &&
-        (rlDealt(e, e.heavy ? MELEE_HEAVY_DAMAGE : MELEE_DAMAGE),
-          Xh(e.heavy ? MELEE_HEAVY_DAMAGE : MELEE_DAMAGE),
-          (e.attack = e.heavy ? 1.1 : 0.8),
-          (e.melee = MELEE_SWING_TIME),
-          Ue.knife()),
-      e.ranged && c && a < 24 && a > 3)
+      e.rl && RL.ready
+        ? rlMelee(e, a)
+        : a < 1.9 &&
+          Math.abs(k.pos.y - 1.7) < 1.5 &&
+          e.attack <= 0 &&
+          (Xh(e.heavy ? MELEE_HEAVY_DAMAGE : MELEE_DAMAGE),
+            (e.attack = e.heavy ? 1.1 : 0.8),
+            (e.melee = MELEE_SWING_TIME),
+            Ue.knife()),
+      !(e.rl && RL.ready) && e.ranged && c && a < 24 && a > 3)
     ) {
       if (e.aim > 0) {
         if (((e.aim -= i), e.aimAnchor.lerp(k.pos, Math.min(1, i * 2.1)), e.aim <= 0)) {
@@ -27120,7 +27193,6 @@ function Zv(i) {
             xs(g, 9, 16768443, 1.7, 0.12, 0.13),
             xs(g, 5, 7566195, 0.9, 0.5, 0.16, new D(Pe(-0.4, 0.4), Pe(0.3, 1), Pe(-0.4, 0.4))),
             Ue.enemyShot(e.root.userData.enemyKind === "ranged-dmr" ? 1 : 0, a),
-            p && rlDealt(e, e.root.userData.enemyKind === "ranged-dmr" ? RANGED_DMR_DAMAGE : RANGED_DAMAGE),
             p && Xh(e.root.userData.enemyKind === "ranged-dmr" ? RANGED_DMR_DAMAGE : RANGED_DAMAGE),
             (e.attack = Pe(RANGED_COOLDOWN_MIN, RANGED_COOLDOWN_MAX)));
         }
@@ -27129,7 +27201,7 @@ function Zv(i) {
           ((e.aim = RANGED_AIM_WINDUP * (e.heavy ? 1.2 : 1) * Pe(0.85, 1.2)),
           e.aimAnchor.copy(k.pos),
           xs(n.clone().add(new D(0.2, 1.3, 0.3)), 2, 16733525, 0.6, 0.05, 0.05));
-    } else e.aim = 0;
+    } else e.rl && RL.ready ? rlRanged(e, i, a, c) : (e.aim = 0);
   }
 }
 function qh(i) {

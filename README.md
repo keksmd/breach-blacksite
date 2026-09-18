@@ -5,7 +5,7 @@
 Fork of `alesha-pro/bench-portal @ 2fa5c82` → `games/breach-blacksite-astra`.
 
 Static Three.js horde-survival FPS. No build step: `index.html` + prebuilt bundle in `assets/`.
-Upstream ships only build output, so tuning happens directly in `assets/index-e23056ba.js`
+Upstream ships only build output, so tuning happens directly in `assets/index-22eb533a.js`
 (game logic lives in the tail of the file) and in `assets/index-8d3db6dc.css` / `index.html`
 (both unminified-friendly).
 
@@ -20,52 +20,66 @@ Then open http://localhost:8788
     pip3 install numpy
     python3 server/rl_server.py
 
-Backend listens on http://localhost:8790 (`RL_PORT` to change). When it is up, the game
-hands every second enemy to a policy network and streams each bot's trajectory
-(observation, action, reward) to `POST /episodes`. There are two nets, MLP 24-48-6 each:
-one for melee hostiles, one for shooters, trained only on episodes of their own class.
-Episodes land in `server/data/episodes.jsonl`; a trainer thread reruns REINFORCE every
-20 s on the last 3000 episodes per class (needs at least 8) and bumps
-`server/data/policy_melee.json` / `policy_ranged.json`. Both files plus the episode log
-are reloaded on backend start, so RL progress survives restarts the same way the run
-save does. The game refetches `/policy` every 30 s, so bots improve between waves without
-a reload. `GET /stats` shows episodes and versions per class, steps and mean return of
-the last 100 episodes. On GitHub Pages the backend is absent, `/policy` fails within
-1.2 s and all bots stay scripted.
+Backend listens on http://localhost:8790 (`RL_PORT` to change). When it is up, every
+hostile (screamers excepted) is driven end to end by a policy network: where to run, when
+to swing or pull the trigger, and how far to lead the shot. The scripted AI only runs when
+the backend is absent (GitHub Pages: `/policy` fails within 1.2 s, bots stay scripted).
 
-Observation (24 floats, every 0.5 s):
+Two nets, one for melee hostiles and one for shooters, each MLP 36-64 with four heads:
 
-    0  distance to player / 24        12 player health / 100
-    1  line of sight (0/1)            13 player reloading (0/1)
-    2  own health fraction            14 player aiming down sights (0..1)
-    3  heavy (0/1)                    15 player weapon index / 3
-    4  staggered (0/1)                16 time since player was hurt / 3 (capped)
-    5  attack cooldown (-1..1)        17 allies within 6 m / 5
-    6  ranged and aiming (0/1)        18 nearest ally distance / 10
-    7  player speed / 8               19 hostiles alive / 20
-    8  player facing dot (-1..1)      20 wave / 10
-    9  player facing cross (left/right) 21 cover 1 m to the left (0/1)
-    10 player airborne (0/1)          22 cover 1 m to the right (0/1)
-    11 player sliding (0/1)           23 previous action / 5
+    move  9   stop, or one of 8 directions in 45 degree steps around the player
+    fire  2   melee: swing now; ranged: start the 0.72 s windup
+    aim   7   lead the shot by 0..0.9 s of player velocity, sampled at windup start
+    value 1   critic (state value) used for the advantage
 
-Actions: 0 push, 1 strafe left, 2 strafe right, 3 back off, 4 hold (fire), 5 flank.
-Each decision samples the policy with 15 % uniform exploration, so even a trained policy
-keeps trying other moves.
+Hits are geometry, not dice: a shot lands when the aimed point is within 0.8 m of where
+the player actually is when the windup ends, so shooters have to learn to lead a moving
+target. A melee swing further than 1.9 m is a whiff (-0.05, cooldown lost).
+
+Learning is online. The game posts transitions (obs, actions, reward, next obs) every
+second; the backend applies each batch immediately as an advantage actor-critic step
+(plus two minibatches from a 20000-transition replay buffer per class) and the game
+refetches weights every 3 s. A bot's action is therefore corrected within a few seconds,
+not once per round. The HUD line `RL u184 · 12 BOTS · 9310 STEPS` counts gradient updates
+and transitions received. Everything persists in `server/data/` (`policy_melee.json`,
+`policy_ranged.json` every 30 s, `transitions.jsonl` append-only) and is reloaded on
+start, so RL progress survives restarts the same way the run save does. Several tabs can
+feed the same backend at once. `GET /stats` shows updates per class, transitions, replay
+size, mean reward and the shooters' hit rate.
+
+Observation (36 floats, every 0.5 s; directions are in the bot's frame where index 0 points
+at the player):
+
+    0  distance to player / 24        18 nearest ally distance / 10
+    1  line of sight (0/1)            19 hostiles alive / 20
+    2  own health fraction            20 wave / 10
+    3  heavy (0/1)                    21 cover 1 m to the left (0/1)
+    4  staggered (0/1)                22 cover 1 m to the right (0/1)
+    5  attack cooldown (-1..1)        23 previous move / 8
+    6  winding up a shot (0/1)        24 player velocity along the bot-player axis / 8
+    7  player speed / 8               25 player velocity across it / 8
+    8  player facing dot (-1..1)      26 flow field direction, along
+    9  player facing cross            27 flow field direction, across
+    10 player airborne (0/1)          28..35 free distance in 8 directions (0..3 m)
+    11 player sliding (0/1)
+    12 player health / 100
+    13 player reloading (0/1)
+    14 player aiming down sights
+    15 player weapon index / 3
+    16 time since player hurt / 3
+    17 allies within 6 m / 5
 
 Rewards: +0.1 per damage point dealt, -0.03 per damage point taken, -0.01 per decision,
--2 on death, +5 to every living bot when the player dies. Class shaping on top: melee
-gets +0.05 per metre closed (-0.05 per metre lost, capped at 1 m per tick); shooters get
-+0.02 per tick when they hold line of sight at 7.5..15 m and -0.02 when closer than 6 m.
-
-What you see in game when the backend is up: a green line under the score (`RL v3 · 4 BOTS ·
-120 EP`), a green cube above every RL-driven hostile, and those hostiles strafing, backing
-off and holding instead of running the scripted line. `__BREACH__.state.rl` exposes
-ready/version/bots/decisions/queued/sent.
+-0.05 per miss or whiff, -2 on death, +5 to every living bot when the player dies. Class
+shaping on top: melee gets +0.05 per metre closed (capped at 1 m per tick); shooters get
++0.02 per tick holding line of sight at 7.5..15 m and -0.02 closer than 6 m. Each head
+samples with 10 % uniform exploration.
 
 The same backend keeps your run: wave, score, kills, health, weapon and ammo are posted to
 `POST /save` every 4 s while playing. Reload the page and the menu button reads
 `RESUME WAVE 05 · 01234`; DEPLOY continues from the start of that wave. Dying or choosing
-RESTART OPERATION clears the save.
+RESTART OPERATION clears the save. `__BREACH__.state.rl` exposes
+ready/version/bots/decisions/queued/sent.
 
 ## Debug hook
 
