@@ -27001,7 +27001,7 @@ const RL_URL = "http://localhost:8790",
   TM_JUMP = 6.1,
   TM_HOP_RATE = 0.7,
   tmMem = [new Map(), new Map()],
-  TM_SPAWNS = [[[30, 28, 2.5, 3]], [[-31.5, 18, 2, 6]]], TM_KNIFE_SHARE = 0.3, TM_KNIFE_SPEED = 6.9, RL_ALIVE_REWARD = 0.02, RL_ALIVE_RAMP = 30,
+  TM_SPAWNS = [[[30, 28, 2.5, 3]], [[-15, -14, 3, 1.5]]], TM_KNIFE_SHARE = 0.3, TM_KNIFE_SPEED = 6.9, RL_ALIVE_REWARD = 0.02, RL_ALIVE_RAMP = 30, MM_RANGE = 16,
   MM_ZONES = [["OPS", 8, -31], ["BAY 03", -22, -28], ["SECTOR 07", 8, -10], ["MAINT", 30, 7], ["POWER", 30, 28], ["WEST LANE", -31, 18], ["YARD", 0, 8], ["LOGISTICS", -17, -8], ["SOUTH LOT", 5, 28]],
   TM_NAMES = ["ALPHA", "BRAVO"],
   TM = { on: !1, auto: !1, round: 0, wins: [0, 0], next: 0, deaths: 0, clock: 0 },
@@ -27783,29 +27783,35 @@ function tmMinimap() {
   const g = cv.getContext("2d"),
     W = cv.width,
     c = W / 2,
-    sc = c / 37;
+    sc = c / MM_RANGE,
+    ox = c - k.pos.x * sc,
+    oz = c - k.pos.z * sc;
   g.clearRect(0, 0, W, W);
   g.save();
   (g.beginPath(), g.arc(c, c, c - 1, 0, Math.PI * 2), g.clip());
   ((g.fillStyle = "#0b1a1cc8"), g.fillRect(0, 0, W, W));
   g.fillStyle = "#c8d4bf55";
-  for (const b of Gr.colliders) b.y1 > 1 && g.fillRect(c + (b.x - b.w) * sc, c + (b.z - b.d) * sc, b.w * 2 * sc, b.d * 2 * sc);
-  ((g.fillStyle = "#dfe8c7"), (g.font = "600 13px Barlow, monospace"), (g.textAlign = "center"), (g.textBaseline = "middle"));
-  for (const [t, x, z] of MM_ZONES) g.fillText(t, c + x * sc, c + z * sc);
-  const dot = (x, z, col, r = 4) => {
-    ((g.fillStyle = col), g.beginPath(), g.arc(c + x * sc, c + z * sc, r, 0, Math.PI * 2), g.fill());
+  for (const b of Gr.colliders) b.y1 > 1 && Math.abs(b.x - k.pos.x) < b.w + MM_RANGE && Math.abs(b.z - k.pos.z) < b.d + MM_RANGE && g.fillRect(ox + (b.x - b.w) * sc, oz + (b.z - b.d) * sc, b.w * 2 * sc, b.d * 2 * sc);
+  ((g.font = "600 15px Barlow, monospace"), (g.textAlign = "center"), (g.textBaseline = "middle"));
+  for (const [t, x, z] of MM_ZONES) {
+    const dd = Math.hypot(x - k.pos.x, z - k.pos.z);
+    if (dd > MM_RANGE * 1.3) continue;
+    const dx = ox + x * sc, dz = oz + z * sc, cl = Math.min(1, Math.max(0, (MM_RANGE * 1.3 - dd) / (MM_RANGE * 0.5)));
+    ((g.fillStyle = `rgba(223,232,199,${(0.85 * cl).toFixed(2)})`), g.fillText(t, rn(dx, 26, W - 26), rn(dz, 12, W - 12)));
+  }
+  const dot = (x, z, col, r = 5) => {
+    Math.hypot(x - k.pos.x, z - k.pos.z) <= MM_RANGE + 1 && ((g.fillStyle = col), g.beginPath(), g.arc(ox + x * sc, oz + z * sc, r, 0, Math.PI * 2), g.fill());
   };
   if (TM.on) {
     for (const e of Je) e.alive && e.team === 0 && dot(e.root.position.x, e.root.position.z, "#4f8cff");
     for (const [v, m] of tmMem[0]) v !== k && v.alive && dot(m.x, m.z, sn - m.at < 1 ? "#39ff88" : "#39ff8877");
   } else for (const e of Je) e.alive && dot(e.root.position.x, e.root.position.z, e.screamer ? "#ff7a3a" : "#ff4d4d");
-  const px = c + k.pos.x * sc,
-    pz = c + k.pos.z * sc,
-    fx = -Math.sin(k.yaw),
+  const fx = -Math.sin(k.yaw),
     fz = -Math.cos(k.yaw);
-  ((g.fillStyle = "#e3ef85"), g.beginPath(), g.moveTo(px + fx * 11, pz + fz * 11), g.lineTo(px - fz * 5 - fx * 4, pz + fx * 5 - fz * 4), g.lineTo(px + fz * 5 - fx * 4, pz - fx * 5 - fz * 4), g.closePath(), g.fill());
+  ((g.fillStyle = "#e3ef85"), g.beginPath(), g.moveTo(c + fx * 12, c + fz * 12), g.lineTo(c - fz * 6 - fx * 5, c + fx * 6 - fz * 5), g.lineTo(c + fz * 6 - fx * 5, c - fx * 6 - fz * 5), g.closePath(), g.fill());
   g.restore();
   ((g.strokeStyle = "#cbd4bf66"), (g.lineWidth = 2), g.beginPath(), g.arc(c, c, c - 1, 0, Math.PI * 2), g.stroke());
+  ((g.fillStyle = "#cbd4bfaa"), (g.font = "700 12px Barlow, monospace"), g.fillText("N", c, 9));
 }
 function tmRender(t) {
   (Cv(Se, Je, li),
