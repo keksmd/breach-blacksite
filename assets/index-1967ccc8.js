@@ -26494,7 +26494,7 @@ function Xh(i) {
     (In += 0.02),
     Ue.hurt(i),
     Xn(),
-    k.health <= 0 && (TM.on ? tmAlive(0) > 0 && tmRespawn() : Xv()));
+    k.health <= 0 && (TM.on ? (TM.mode === "zone" ? ((TM.pRespawn = ZONE_RESPAWN), _c("KIA", "REDEPLOY IN 5s", 4.5)) : tmAlive(0) > 0 && tmRespawn()) : Xv()));
 }
 function vc() {
   if (hi > Pr) {
@@ -26528,7 +26528,9 @@ function Xn() {
     (Et("hostiles").textContent = TM.on
       ? TM.next > 0
         ? "NEXT ROUND IN " + Math.ceil(TM.next) + "s"
-        : `${TM_NAMES[0]} ${tmAlive(0)} · ${tmAlive(1)} ${TM_NAMES[1]}`
+        : TM.mode === "zone"
+          ? `${TM_NAMES[0]} ${Math.floor(TM.cap[0])}% · ${Math.floor(TM.cap[1])}% ${TM_NAMES[1]}`
+          : `${TM_NAMES[0]} ${tmAlive(0)} · ${tmAlive(1)} ${TM_NAMES[1]}`
       : Mi > 0
         ? "NEXT WAVE IN " + Math.ceil(Mi) + "s"
         : `${Math.max(0, ms - Fa)} HOSTILES REMAINING`),
@@ -26539,7 +26541,7 @@ function Xn() {
     (Et("reserve").textContent = Cn[Ut]),
     (Et("weapon-name").textContent = Oe[Ut].name),
     (Et("fire-mode").textContent = Oe[Ut].type),
-    (Et("wave-progress").firstElementChild.style.width = (TM.on ? (tmAlive(0) / TM_SIZE) * 100 : ms ? (Fa / ms) * 100 : 0) + "%"),
+    (Et("wave-progress").firstElementChild.style.width = (TM.on ? (TM.mode === "zone" ? TM.cap[0] : (tmAlive(0) / TM_SIZE) * 100) : ms ? (Fa / ms) * 100 : 0) + "%"),
     (Et("lowhp").style.opacity = k.health > 0 ? rn((46 - k.health) / 46, 0, 1) * 0.82 : 0),
     Et("lowhp").classList.toggle("crit", k.health > 0 && k.health <= 24));
 }
@@ -26623,10 +26625,13 @@ function $a() {
     Et("pause").classList.remove("hidden"));
 }
 Et("deploy").onclick = () => {
-  ((TM.on = !1), (retryWave = 1), (RL.resume = !0), of());
+  ((TM.on = !1), (retryWave = 1), (RL.resume = !0), (document.querySelector(".hud-brand span").textContent = "BLACKSITE / SURVIVAL"), of());
 };
 Et("deploy-team").onclick = () => {
-  ((TM.on = !0), (retryWave = 1), (RL.resume = !1), of());
+  ((TM.on = !0), (TM.mode = "tdm"), (retryWave = 1), (RL.resume = !1), of());
+};
+Et("deploy-zone").onclick = () => {
+  ((TM.on = !0), (TM.mode = "zone"), (retryWave = 1), (RL.resume = !1), of());
 };
 Et("restart").onclick = of;
 Et("resume").onclick = () => {
@@ -27004,8 +27009,25 @@ const RL_URL = "http://localhost:8790",
   TM_SPAWNS = [[[30, 28, 2.5, 3]], [[-15, -14, 3, 1.5]]], TM_KNIFE_SHARE = 0.3, TM_KNIFE_SPEED = 6.9, RL_ALIVE_REWARD = 0.02, RL_ALIVE_RAMP = 30, MM_RANGE = 16,
   MM_ZONES = [["OPS", 8, -31], ["BAY 03", -22, -28], ["SECTOR 07", 8, -10], ["MAINT", 30, 7], ["POWER", 30, 28], ["WEST LANE", -31, 18], ["YARD", 0, 8], ["LOGISTICS", -17, -8], ["SOUTH LOT", 5, 28]],
   TM_NAMES = ["ALPHA", "BRAVO"],
-  TM = { on: !1, auto: !1, round: 0, wins: [0, 0], next: 0, deaths: 0, clock: 0 },
+  TM = { on: !1, auto: !1, mode: "tdm", round: 0, wins: [0, 0], next: 0, deaths: 0, clock: 0, cap: [0, 0], queue: [], pRespawn: 0, hud: 0 },
+  ZONE = { x: 9, z: 7, r: 7 },
+  ZONE_RATE = 100 / 60,
+  ZONE_RESPAWN = 5,
+  RL_ZONE_REWARD = 0.05,
+  TM_MODE_NAMES = { tdm: "TEAM DEATHMATCH", zone: "ZONE CONTROL" },
   RL = { ready: !1, version: 0, policy: null, queue: [], sent: 0, decisions: 0, flushTimer: 0, refreshTimer: 0, statsTimer: 0, saveTimer: 0, save: null, resume: !1, episodes: 0 };
+const zoneMesh = new Me();
+{
+  const zm = new tn({ color: 14876549, transparent: !0, opacity: 0.16, side: 2, depthWrite: !1 }),
+    zr = new tn({ color: 14876549, transparent: !0, opacity: 0.85 });
+  zoneMesh.add(new ee(new Ga(ZONE.r, ZONE.r, 2.2, 48, 1, !0), zm));
+  zoneMesh.children[0].position.y = 1.1;
+  for (const y of [0.06, 2.2]) {
+    const ring = new ee(new Xa(ZONE.r, 0.06, 6, 64), zr);
+    ((ring.rotation.x = Math.PI / 2), (ring.position.y = y), zoneMesh.add(ring));
+  }
+  (zoneMesh.position.set(ZONE.x, 0, ZONE.z), (zoneMesh.visible = !1), Se.add(zoneMesh));
+}
 function rlFetch(path, ms) {
   const ctl = new AbortController(),
     timer = setTimeout(() => ctl.abort(), ms);
@@ -27080,11 +27102,13 @@ function tmTarget(e) {
     d < bd && ((bd = d), (best = tmGhost(m.x, m.z)));
   }
   if (best) return best;
-  for (const p of TM_SPAWNS[1 - e.team]) {
-    const d = Math.hypot(p[0] - n.x, p[1] - n.z);
-    d < bd && ((bd = d), (best = tmGhost(p[0], p[1])));
-  }
-  return best;
+  if (TM.mode === "zone") return tmGhost(ZONE.x, ZONE.z);
+  e.hdg ??= Math.random() * Math.PI * 2;
+  for (let k8 = 0; k8 < 12 && mc(n.x + Math.sin(e.hdg) * 6, n.z + Math.cos(e.hdg) * 6, 0.5); k8++) e.hdg += Pe(1.2, 2.6) * (Math.random() < 0.5 ? -1 : 1);
+  return tmGhost(n.x + Math.sin(e.hdg) * 6, n.z + Math.cos(e.hdg) * 6);
+}
+function tmInZone(x, z) {
+  return Math.hypot(x - ZONE.x, z - ZONE.z) <= ZONE.r;
 }
 function tmVisUpdate() {
   for (const e of Je) {
@@ -27130,7 +27154,9 @@ function tmSpawnPoint(team) {
 }
 function tmRound() {
   for (const g of Je) Se.remove(g.root);
-  ((Je.length = 0), TM.round++, (en = TM.round), (gs = 0), (ms = 0), (Fa = 0), (Mi = 0), (TM.next = 0), (TM.clock = 0), (Ho = 0), tmMem[0].clear(), tmMem[1].clear());
+  ((Je.length = 0), TM.round++, (en = TM.round), (gs = 0), (ms = 0), (Fa = 0), (Mi = 0), (TM.next = 0), (TM.clock = 0), (Ho = 0), (TM.cap = [0, 0]), (TM.queue = []), (TM.pRespawn = 0), tmMem[0].clear(), tmMem[1].clear());
+  zoneMesh.visible = TM.mode === "zone";
+  document.querySelector(".hud-brand span").textContent = "BLACKSITE / " + TM_MODE_NAMES[TM.mode];
   for (let team = 0; team < 2; team++) {
     const bots = team === 0 && !TM.auto ? TM_SIZE - 1 : TM_SIZE;
     const knives = Math.round(bots * TM_KNIFE_SHARE);
@@ -27142,7 +27168,7 @@ function tmRound() {
   }
   const ps = tmSpawnPoint(0);
   (k.pos.set(ps[0], 1.7, ps[1]), k.vel.set(0, 0, 0), (k.yaw = Math.PI / 2), (k.health = TM.auto ? 0 : 100), (k.lastHurt = -10));
-  (_c(`ROUND ${String(TM.round).padStart(2, "0")}`, `${TM_NAMES[0]} ${TM.wins[0]} : ${TM.wins[1]} ${TM_NAMES[1]}`, 3), Ue.wave(), Xn());
+  (_c(`ROUND ${String(TM.round).padStart(2, "0")}`, TM.mode === "zone" ? "HOLD THE ZONE" : `${TM_NAMES[0]} ${TM.wins[0]} : ${TM.wins[1]} ${TM_NAMES[1]}`, 3), Ue.wave(), Xn());
 }
 function tmRespawn() {
   if (TM.auto) return;
@@ -27157,6 +27183,10 @@ function tmUpdate(i) {
   }
   const a = tmAlive(0),
     b = tmAlive(1);
+  if (TM.mode === "zone") {
+    tmZoneUpdate(i);
+    return;
+  }
   if ((TM.clock += i) > TM_ROUND_MAX) {
     ((TM.next = 5), rlEndAll(0), _c("TIME", `${TM_NAMES[0]} ${a} : ${b} ${TM_NAMES[1]} STILL STANDING`, 4), Xn());
     return;
@@ -27166,8 +27196,27 @@ function tmUpdate(i) {
     (TM.wins[w]++, (TM.next = 5), rlEndAll(0), _c(`${TM_NAMES[w]} TAKES THE ROUND`, `${TM_NAMES[0]} ${TM.wins[0]} : ${TM.wins[1]} ${TM_NAMES[1]}`, 4), Ue.wave(), Xn());
   }
 }
+function tmZoneUpdate(i) {
+  TM.pRespawn > 0 && ((TM.pRespawn -= i), TM.pRespawn <= 0 && tmRespawn());
+  for (let q = TM.queue.length - 1; q >= 0; q--) {
+    const r = TM.queue[q];
+    if (sn < r.at) continue;
+    const p = tmSpawnPoint(r.team);
+    (Lv(p[0], p[1], !1, r.weapon >= 0, r.team, r.weapon), TM.queue.splice(q, 1));
+  }
+  const held = [!1, !1];
+  for (const g of Je) g.alive && g.spawn <= 0 && !g.screamer && tmInZone(g.root.position.x, g.root.position.z) && (held[g.team] = !0);
+  k.health > 0 && tmInZone(k.pos.x, k.pos.z) && (held[0] = !0);
+  for (let t = 0; t < 2; t++) held[t] && (TM.cap[t] = Math.min(100, TM.cap[t] + i * ZONE_RATE));
+  ((TM.hud -= i), TM.hud <= 0 && ((TM.hud = 0.25), Xn()));
+  const lead = TM.cap[0] >= 100 ? 0 : TM.cap[1] >= 100 ? 1 : -1;
+  if (lead < 0) return;
+  (TM.wins[lead]++, (TM.next = 5), rlEndAll(0), _c(`${TM_NAMES[lead]} HOLDS THE ZONE`, `${TM_NAMES[0]} ${TM.wins[0]} : ${TM.wins[1]} ${TM_NAMES[1]}`, 4), Ue.wave(), Xn());
+}
 function tmAutoBoot() {
-  if (!new URLSearchParams(location.search).has("auto")) return;
+  const auto = new URLSearchParams(location.search).get("auto");
+  if (auto === null) return;
+  TM.mode = auto === "zone" ? "zone" : "tdm";
   const t = setInterval(() => {
     if (!RL.ready) {
       rlRefresh();
@@ -27410,6 +27459,7 @@ function rlDecide(e, a, c, bo, bl, T) {
   const taken = (e.rlHp ?? e.hp) - e.hp;
   ((e.rlHp = e.hp), rlReward(e, -taken * RL_TAKEN_COST));
   TM.on && ((e.age = (e.age ?? 0) + RL_TICK), rlReward(e, RL_ALIVE_REWARD * Math.min(1, e.age / RL_ALIVE_RAMP)));
+  TM.on && TM.mode === "zone" && tmInZone(e.root.position.x, e.root.position.z) && rlReward(e, RL_ZONE_REWARD);
   const obs = rlObs(e, a, c, bo, bl, T);
   rlPush(e, obs);
   const act = rlAct(obs, e.ranged ? RL.policy.ranged : RL.policy.melee);
@@ -27492,7 +27542,7 @@ function tmFieldsUpdate() {
   const seeds = [[], []];
   for (let team = 0; team < 2; team++) {
     for (const [, m] of tmMem[team]) seeds[team].push(gc(m.x, m.z));
-    if (!seeds[team].length) for (const p of TM_SPAWNS[1 - team]) seeds[team].push(gc(p[0], p[1]));
+    !seeds[team].length && TM.mode === "zone" && seeds[team].push(gc(ZONE.x, ZONE.z));
   }
   (tmFill(tmFields[0], seeds[0]), tmFill(tmFields[1], seeds[1]));
 }
@@ -27511,6 +27561,7 @@ function Jv(n, o, l, f = ii) {
       const P = M * ge + x;
       (C && A && (Oa[d * ge + x] || Oa[M * ge + _])) || (f[P] < p && ((p = f[P]), (w = x), (E = M)));
     }
+  if (w === _ && E === d) return [o, l];
   const S = w * qr - Yr - n.x,
     v = E * qr - Yr - n.z,
     T = Math.hypot(S, v);
@@ -27522,7 +27573,7 @@ function Zv(i) {
   for (let t = Je.length - 1; t >= 0; t--) {
     const e = Je[t];
     if (!e.alive) {
-      (rlEnd(e, 0), Je.splice(t, 1));
+      (rlEnd(e, 0), TM.on && TM.mode === "zone" && TM.queue.push({ team: e.team, weapon: e.weapon, at: sn + ZONE_RESPAWN }), Je.splice(t, 1));
       continue;
     }
     if (e.spawn > 0) {
@@ -27546,7 +27597,8 @@ function Zv(i) {
       a = Math.hypot(r, s);
     let o = r / (a || 1),
       l = s / (a || 1);
-    const c = !T.ghost && zv(n, T.pos);
+    const c = !T.ghost && zv(n, T.pos),
+      pure = TM.on && e.rl && RL.ready;
     TM.on && (c ? (e.seen += i) : ((e.seen = 0), (e.react = Pe(TM_REACT_MIN, TM_REACT_MAX))), tmBotBody(e, i, c));
     ((e.flank ??= Math.random() < 0.5 ? -1 : 1),
       (e.flankTimer ??= Pe(1.2, 3.2)),
@@ -27569,7 +27621,7 @@ function Zv(i) {
     }
     const bo = o,
       bl = l;
-    if (c) {
+    if (c && !pure) {
       const g = e.flank * FLANK_STRENGTH * rn((a - 2.4) / 9, 0, 1) * (e.ranged ? 1.15 : 0.8),
         _ = Math.cos(g),
         d = Math.sin(g),
@@ -27577,8 +27629,8 @@ function Zv(i) {
         w = o * d + l * _;
       ((o = p), (l = w));
     }
-    let m = e.ranged && c && ((a < RANGED_HOLD_MAX && a > RANGED_HOLD_MIN) || e.aim > 0);
-    e.ranged && c && a < RANGED_BREAK_OFF && ((m = !1), (o = -o), (l = -l));
+    let m = !pure && e.ranged && c && ((a < RANGED_HOLD_MAX && a > RANGED_HOLD_MIN) || e.aim > 0);
+    !pure && e.ranged && c && a < RANGED_BREAK_OFF && ((m = !1), (o = -o), (l = -l));
     if (e.rl && RL.ready) {
       ((e.rlTimer = (e.rlTimer ?? 0) - i), e.rlTimer <= 0 && ((e.rlTimer = RL_TICK), rlDecide(e, a, c, bo, bl, T)));
       const mv = e.rlMove ?? 0;
@@ -27802,6 +27854,11 @@ function tmMinimap() {
   const dot = (x, z, col, r = 5) => {
     Math.hypot(x - k.pos.x, z - k.pos.z) <= MM_RANGE + 1 && ((g.fillStyle = col), g.beginPath(), g.arc(ox + x * sc, oz + z * sc, r, 0, Math.PI * 2), g.fill());
   };
+  if (TM.on && TM.mode === "zone") {
+    const held = TM.cap[0] > TM.cap[1] ? "#4f8cff" : TM.cap[1] > TM.cap[0] ? "#39ff88" : "#e3ef85";
+    ((g.strokeStyle = held), (g.lineWidth = 2), g.setLineDash([6, 4]), g.beginPath(), g.arc(ox + ZONE.x * sc, oz + ZONE.z * sc, ZONE.r * sc, 0, Math.PI * 2), g.stroke(), g.setLineDash([]));
+    ((g.fillStyle = held + "22"), g.fill());
+  }
   if (TM.on) {
     for (const e of Je) e.alive && e.team === 0 && dot(e.root.position.x, e.root.position.z, "#4f8cff");
     for (const [v, m] of tmMem[0]) v !== k && v.alive && dot(m.x, m.z, sn - m.at < 1 ? "#39ff88" : "#39ff8877");
@@ -27838,7 +27895,7 @@ window.__BREACH__ = {
     return Je;
   },
   start(team) {
-    ((TM.on = !!team), (RL.resume = !1), of(), af());
+    ((TM.on = !!team), (TM.mode = team === 2 ? "zone" : "tdm"), (RL.resume = !1), of(), af());
   },
   get weapons() {
     return Oe;
@@ -27854,7 +27911,7 @@ window.__BREACH__ = {
       wave: en,
       hostiles: Je.length,
       rl: { ready: RL.ready, version: RL.version, bots: Je.filter((i) => i.rl).length, decisions: RL.decisions, queued: RL.queue.length, sent: RL.sent },
-      team: { on: TM.on, auto: TM.auto, round: TM.round, wins: TM.wins.slice(), alive: [tmAlive(0), tmAlive(1)], clock: TM.clock },
+      team: { on: TM.on, auto: TM.auto, mode: TM.mode, round: TM.round, wins: TM.wins.slice(), alive: [tmAlive(0), tmAlive(1)], clock: TM.clock, cap: TM.cap.slice(), queue: TM.queue.length },
       pending: gs,
       kills: Ja,
       score: hi,

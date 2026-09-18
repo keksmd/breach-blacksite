@@ -1,6 +1,6 @@
 """Headless self-play: N browser tabs run team deathmatch bot-vs-bot against the RL backend.
 
-Usage: python3 server/selfplay.py --games 16 --port 4178 --minutes 0
+Usage: python3 server/selfplay.py --games 16 --port 4178 --minutes 0 --mode tdm|zone
 Requires: pip3 install playwright; Google Chrome installed (channel=chrome) or `playwright install chromium`.
 The static site must already be served on --port and rl_server.py on 8790.
 """
@@ -36,7 +36,7 @@ def stats():
 async def probe(page, i):
     try:
         return await page.evaluate(
-            "() => { const s = __BREACH__.state; return {r: s.team.round, w: s.team.wins, a: s.team.alive, u: s.rl.version, ready: s.rl.ready && s.team.auto, t: s.time}; }"
+            "() => { const s = __BREACH__.state; return {r: s.team.round, w: s.team.wins, a: s.team.alive, cap: s.team.cap, u: s.rl.version, ready: s.rl.ready && s.team.auto, t: s.time}; }"
         )
     except Exception as e:
         return {"err": str(e)[:60]}
@@ -49,8 +49,9 @@ async def main():
     ap.add_argument("--minutes", type=float, default=0, help="0 = run until Ctrl-C")
     ap.add_argument("--channel", default="chrome")
     ap.add_argument("--report", type=int, default=60)
+    ap.add_argument("--mode", default="tdm", help="tdm or zone")
     a = ap.parse_args()
-    url = f"http://127.0.0.1:{a.port}/?auto=tdm"
+    url = f"http://127.0.0.1:{a.port}/?auto={a.mode}"
     async with async_playwright() as pw:
         try:
             browser = await pw.chromium.launch(headless=True, channel=a.channel, args=ARGS)

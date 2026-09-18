@@ -5,7 +5,7 @@
 Fork of `alesha-pro/bench-portal @ 2fa5c82` → `games/breach-blacksite-astra`.
 
 Static Three.js horde-survival FPS. No build step: `index.html` + prebuilt bundle in `assets/`.
-Upstream ships only build output, so tuning happens directly in `assets/index-e7cef015.js`
+Upstream ships only build output, so tuning happens directly in `assets/index-1967ccc8.js`
 (game logic lives in the tail of the file) and in `assets/index-49044fd1.css` / `index.html`
 (both unminified-friendly).
 
@@ -117,16 +117,41 @@ feature slots in the observation are filled from whatever it is hunting, so the 
 weights apply unchanged). Every sighting is written to a team memory (last seen x/z per
 enemy, 12 s expiry, cleared at round start). A bot that sees nobody heads for the nearest
 remembered position as a ghost target: it walks there, its observation says no line of
-sight, and it cannot shoot or stab a ghost. With no memory at all the team heads for the
-enemy spawn points. Each team's flow field, a multi-source BFS, is seeded from that memory
-(or the enemy spawns), never from live enemy positions, so nothing is sensed through walls.
+sight, and it cannot shoot or stab a ghost. With no memory at all a bot keeps walking its
+own random heading, re-rolled only when the 6 m waypoint ahead is inside a wall; in ZONE
+CONTROL the empty-memory fallback is the zone centre instead. Each team's flow field, a
+multi-source BFS, is seeded from that memory (or the zone), never from live enemy
+positions, so nothing is sensed through walls, and nobody is sent to the enemy spawn.
 Bot models face their own target, not you.
+
+Team-mode bots are steered by the policy alone: no flank arcs, no hold band, no
+break-off retreat. The frame the policy moves in is the direction to whatever `tmTarget`
+returned (visible enemy, remembered position via the flow field, zone centre, or own
+heading); the net picks one of 8 directions or hold, plus fire and aim, every 0.5 s. What
+remains outside the net is physics and rules: line of sight, the reaction delay before the
+first shot, the 36 m fire range, magazine and reload, gravity and hops over knee-high
+boxes.
 
 A round ends when one side has nobody left. You respawn at an ALPHA spawn while any ALPHA
 bot is alive; once the last one falls, your death ends the round. Five seconds later the
 next round starts with fresh teams. HUD shows `ALPHA n · m BRAVO` and the round number.
 Bot-on-bot kills do not score or drop pickups; only your own kills do. Team mode does
 not touch the survival save.
+
+## Zone control (local only)
+
+The third menu button, ZONE CONTROL 10v10, plays the same teams and spawns with one
+objective: a 7 m circle at x 9 z 7 in the middle of the yard (translucent cylinder with two
+rings; on the minimap a dashed circle in the colour of whoever leads). Each team has its own
+percentage. While at least one member of a team stands inside, that team's counter climbs
+at 100 % per 60 s; if both teams are inside, both climb. The first to 100 % takes the
+round. Nobody stays dead: bots redeploy at their own spawn 5 s after dying, and so do you
+(the HUD counts down `REDEPLOY IN 5s`). The zone sits 29.7 m of walking from BRAVO's spawn
+and 31.9 m from ALPHA's, so the first contact is at the ring, not in a corridor. RL bots
+earn +0.05 per decision while inside the circle on top of the usual hit / damage rewards.
+`?auto=zone` runs it headless, `__BREACH__.start(2)` from script, and
+`__BREACH__.state.team` reports `mode`, `cap` (both percentages) and `queue` (bots waiting
+to respawn).
 
 Stats are the same on both sides in team mode. Bots have 100 hp, run at your walking speed
 (5.1 m/s) and shoot with the weapon table's numbers: the same damage, pellet count, angular
@@ -192,7 +217,8 @@ field direction, then to sliding along the wall either way, so they do not park 
     python3 server/selfplay.py --games 16
 
 Opens N headless Chrome tabs (Google Chrome via `channel=chrome`, or `playwright install
-chromium`) at `/?auto=tdm`. Auto mode fields 10 bots per side, drops the player, skips
+chromium`) at `/?auto=tdm` (`--mode zone` opens `/?auto=zone`). Auto mode fields 10 bots
+per side, drops the player, skips
 rendering and the pause-on-blur handlers, and starts the first round once the policy has
 loaded. Every tab posts its transitions to the same backend, so the nets train on bot vs
 bot at roughly 30 transitions/s per tab. The script prints rounds, wins, transition
@@ -215,6 +241,6 @@ the box list, `__BREACH__.enemies` the live bot list, `__BREACH__.weapons` the w
 and `__BREACH__.shoot(bot, target)` fires one probe ray from a bot's muzzle at a target's
 chest with the bot's weapon spread (returns victim / head / dist), so collision and hit
 cases can be reproduced from the console by teleporting. `__BREACH__.start(team)` starts a
-round from script (team mode when truthy). Query flags for harnesses: `?nopause` keeps
+round from script (1 = team deathmatch, 2 = zone control, 0 = survival). Query flags for harnesses: `?nopause` keeps
 the sim running when the tab loses focus or the pointer lock, `?norender` skips drawing
 (headless Chrome on swiftshader otherwise runs the sim 10x slow).
