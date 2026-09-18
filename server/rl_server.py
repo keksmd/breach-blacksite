@@ -5,7 +5,8 @@ Run it next to the game (python3 server/rl_server.py) and the game will hand
 every second bot to the policy served here. Episodes arrive on POST /episodes,
 land in server/data/episodes.jsonl, and a background thread retrains the
 policy with REINFORCE every TRAIN_EVERY seconds. GET /policy returns the
-current weights, GET /stats shows how much has been collected.
+current weights, GET /stats shows how much has been collected. GET/POST /save
+keeps the player's run (wave, score, ammo) so a page reload resumes it.
 """
 import json
 import os
@@ -20,6 +21,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 DATA = os.path.join(HERE, "data")
 EP_FILE = os.path.join(DATA, "episodes.jsonl")
 POLICY_FILE = os.path.join(DATA, "policy.json")
+SAVE_FILE = os.path.join(DATA, "save.json")
 PORT = int(os.environ.get("RL_PORT", "8790"))
 
 OBS, HID, ACT = 10, 32, 6
@@ -27,7 +29,7 @@ GAMMA = 0.96
 LR = 2e-3
 EPOCHS = 4
 BATCH = 256
-ENTROPY = 0.01
+ENTROPY = 0.03
 TRAIN_EVERY = 20.0
 WINDOW = 3000
 MIN_EPISODES = 8
@@ -217,6 +219,9 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == "/policy":
             with lock:
                 self.reply(200, policy.to_json())
+        elif self.path == "/save":
+            with lock:
+                self.reply(200, read_save())
         elif self.path == "/stats":
             with lock:
                 tail = episodes[-100:]
@@ -237,7 +242,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         global new_since_train
-        if self.path != "/episodes":
+        if self.path not in ("/episodes", "/save"):
             self.reply(404, {"error": "not found"})
             return
         n = int(self.headers.get("Content-Length") or 0)
@@ -245,6 +250,13 @@ class Handler(BaseHTTPRequestHandler):
             body = json.loads(self.rfile.read(n) or b"{}")
         except ValueError:
             self.reply(400, {"error": "bad json"})
+            return
+        if self.path == "/save":
+            if not isinstance(body, dict):
+                body = {}
+            with lock:
+                write_save(body)
+            self.reply(200, body)
             return
         eps = [e for e in body.get("episodes", []) if isinstance(e, dict) and valid(e)]
         with lock:
@@ -257,9 +269,27 @@ class Handler(BaseHTTPRequestHandler):
         self.reply(200, {"accepted": len(eps), "total": len(episodes)})
 
     def log_message(self, fmt, *args):
-        if "/policy" in fmt % args:
+        if "/policy" in fmt % args or "/save" in fmt % args or "/stats" in fmt % args:
             return
         sys.stderr.write("%s %s\n" % (self.address_string(), fmt % args))
+
+
+def read_save():
+    if not os.path.exists(SAVE_FILE):
+        return {}
+    try:
+        with open(SAVE_FILE) as f:
+            d = json.load(f)
+        return d if isinstance(d, dict) else {}
+    except ValueError:
+        return {}
+
+
+def write_save(d):
+    tmp = SAVE_FILE + ".tmp"
+    with open(tmp, "w") as f:
+        json.dump(d, f)
+    os.replace(tmp, SAVE_FILE)
 
 
 def load_state():

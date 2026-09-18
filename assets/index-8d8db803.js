@@ -25823,6 +25823,10 @@ function Lv(i, t, e = !1, n = !1) {
     alive: !0,
     rl: RL.ready && (RL.counter++ & 1) === 1,
   };
+  if (s.rl) {
+    const mk = new ee(new fc(0.26, 0.26, 0.26, 1, 0.04), new tn({ color: 3800968 }));
+    (mk.position.set(0, e ? 2.25 : 2.1, 0), r.root.add(mk));
+  }
   return (Je.push(s), xs(new D(i, 0.2, t), 12, 16761973, 1.5), s);
 }
 function spawnScreamer() {
@@ -26390,6 +26394,7 @@ function vc() {
 }
 function Xv() {
   (rlEndAll(5),
+    RL.ready && rlSave(null),
     (retryWave = Math.max(1, en)),
     vc(),
     (de = "dead"),
@@ -26475,8 +26480,11 @@ async function xc() {
   }
 }
 function of() {
-  (Ue.init(),
+  (RL.resume && RL.save && RL.save.wave > 1 ? (retryWave = RL.save.wave) : RL.ready && rlSave(null),
+    Ue.init(),
     qv(),
+    RL.resume && rlRestore(),
+    (RL.resume = !1),
     (de = "playing"),
     Et("menu").classList.add("hidden"),
     Et("pause").classList.add("hidden"),
@@ -26497,7 +26505,7 @@ function $a() {
     Et("pause").classList.remove("hidden"));
 }
 Et("deploy").onclick = () => {
-  ((retryWave = 1), of());
+  ((retryWave = 1), (RL.resume = !0), of());
 };
 Et("restart").onclick = of;
 Et("resume").onclick = () => {
@@ -26828,18 +26836,54 @@ const RANGED_HOLD_MIN = 7.5,
   RANGED_DMR_DAMAGE = 15,
   FLANK_STRENGTH = 0.85;
 const RL_URL = "http://localhost:8790",
-  RL_TICK = 0.25,
+  RL_TICK = 0.5,
+  RL_EPS = 0.15,
   RL_FLUSH_EVERY = 5,
   RL_REFRESH_EVERY = 30,
-  RL = { ready: !1, version: 0, policy: null, counter: 0, queue: [], sent: 0, decisions: 0, flushTimer: 0, refreshTimer: 0 };
+  RL_SAVE_EVERY = 4,
+  RL = { ready: !1, version: 0, policy: null, counter: 0, queue: [], sent: 0, decisions: 0, flushTimer: 0, refreshTimer: 0, saveTimer: 0, save: null, resume: !1, episodes: 0 };
 function rlInit() {
   const ctl = new AbortController(),
     timer = setTimeout(() => ctl.abort(), 1200);
   fetch(RL_URL + "/policy", { signal: ctl.signal })
     .then((r) => r.json())
-    .then((p) => ((RL.policy = p), (RL.version = p.version), (RL.ready = !0)))
+    .then((p) => ((RL.policy = p), (RL.version = p.version), (RL.ready = !0), rlStatus()))
     .catch(() => {})
     .finally(() => clearTimeout(timer));
+  fetch(RL_URL + "/stats", { signal: ctl.signal })
+    .then((r) => r.json())
+    .then((st) => ((RL.episodes = st.episodes), rlStatus()))
+    .catch(() => {});
+  RL.save ||
+    fetch(RL_URL + "/save", { signal: ctl.signal })
+      .then((r) => r.json())
+      .then((sv) => {
+        ((RL.save = sv && sv.wave > 1 ? sv : {}), rlMenu());
+      })
+      .catch(() => {});
+}
+function rlStatus() {
+  const el = Et("rl-status");
+  el && (el.textContent = RL.ready ? `RL v${RL.version} · ${Je.filter((i) => i.rl).length} BOTS · ${RL.episodes} EP` : "RL OFFLINE");
+}
+function rlMenu() {
+  const el = document.querySelector(".deploy-sub b");
+  el && (el.textContent = RL.save && RL.save.wave > 1 ? `RESUME WAVE ${String(RL.save.wave).padStart(2, "0")} · ${String(RL.save.score).padStart(5, "0")}` : "READY FOR INSERTION");
+}
+function rlSnapshot() {
+  return { wave: en, score: hi, kills: Ja, health: k.health, weapon: Ut, mag: Rn.slice(), reserve: Cn.slice() };
+}
+function rlSave(sv) {
+  ((RL.save = sv && sv.wave > 1 ? sv : {}), rlMenu());
+  fetch(RL_URL + "/save", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(sv || {}), keepalive: !0 }).catch(() => {});
+}
+function rlRestore() {
+  const sv = RL.save;
+  if (!sv || !(sv.wave > 1)) return;
+  ((hi = sv.score | 0), (Ja = sv.kills | 0), (k.health = rn(sv.health || 100, 1, 100)));
+  Array.isArray(sv.mag) && sv.mag.length === Rn.length && (Rn = sv.mag.map((v, i) => rn(v | 0, 0, Oe[i].mag)));
+  Array.isArray(sv.reserve) && sv.reserve.length === Cn.length && (Cn = sv.reserve.map((v, i) => rn(v | 0, 0, Oe[i].reserve)));
+  (sv.weapon >= 0 && sv.weapon < Oe.length && (Ut = sv.weapon), Xn());
 }
 function rlObs(e, a, c) {
   const n = e.root.position,
@@ -26877,6 +26921,7 @@ function rlAct(obs) {
   }
   let tot = 0;
   for (let j = 0; j < z.length; j++) ((z[j] = Math.exp(z[j] - mx)), (tot += z[j]));
+  if (Math.random() < RL_EPS) return Math.floor(Math.random() * z.length);
   let r = Math.random() * tot;
   for (let j = 0; j < z.length; j++) if ((r -= z[j]) <= 0) return j;
   return z.length - 1;
@@ -26917,9 +26962,10 @@ function rlFlush() {
     .catch(() => RL.queue.unshift(...batch));
 }
 function rlTick(i) {
-  ((RL.flushTimer -= i), (RL.refreshTimer -= i));
-  RL.flushTimer <= 0 && ((RL.flushTimer = RL_FLUSH_EVERY), rlFlush());
+  ((RL.flushTimer -= i), (RL.refreshTimer -= i), (RL.saveTimer -= i));
+  RL.flushTimer <= 0 && ((RL.flushTimer = RL_FLUSH_EVERY), rlFlush(), rlStatus());
   RL.refreshTimer <= 0 && ((RL.refreshTimer = RL_REFRESH_EVERY), rlInit());
+  RL.saveTimer <= 0 && RL.ready && de === "playing" && ((RL.saveTimer = RL_SAVE_EVERY), rlSave(rlSnapshot()));
 }
 rlInit();
 function Zv(i) {

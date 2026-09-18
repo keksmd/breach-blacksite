@@ -29,6 +29,16 @@ so bots improve between waves without a reload. `GET /stats` shows episodes, ste
 policy version and mean return of the last 100 episodes. On GitHub Pages the backend is
 absent, `/policy` fails within 1.2 s and all bots stay scripted.
 
+What you see in game when the backend is up: a green line under the score (`RL v3 · 4 BOTS ·
+120 EP`), a green cube above every RL-driven hostile, and those hostiles strafing, backing
+off and holding instead of running the scripted line. Each decision samples the policy with
+15 % uniform exploration, so even a trained policy keeps trying other moves.
+
+The same backend keeps your run: wave, score, kills, health, weapon and ammo are posted to
+`POST /save` every 4 s while playing. Reload the page and the menu button reads
+`RESUME WAVE 05 · 01234`; DEPLOY continues from the start of that wave. Dying or choosing
+RESTART OPERATION clears the save.
+
 Rewards: +0.1 per damage point dealt, -0.03 per damage point taken, -0.01 per decision,
 -2 on death, +5 to every living bot when the player dies. `__BREACH__.state.rl` exposes
 ready/version/bots/decisions/queued/sent.
