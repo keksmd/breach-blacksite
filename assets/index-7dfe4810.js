@@ -25821,6 +25821,7 @@ function Lv(i, t, e = !1, n = !1) {
     stagger: 0,
     spawn: 0.5,
     alive: !0,
+    rl: RL.ready && (RL.counter++ & 1) === 1,
   };
   return (Je.push(s), xs(new D(i, 0.2, t), 12, 16761973, 1.5), s);
 }
@@ -26388,7 +26389,8 @@ function vc() {
   }
 }
 function Xv() {
-  ((retryWave = Math.max(1, en)),
+  (rlEndAll(5),
+    (retryWave = Math.max(1, en)),
     vc(),
     (de = "dead"),
     (bi = Ei = !1),
@@ -26419,7 +26421,7 @@ function Xn() {
     Et("lowhp").classList.toggle("crit", k.health > 0 && k.health <= 24));
 }
 function qv() {
-  Ue.stopScreams();
+  (rlEndAll(0), Ue.stopScreams());
   for (const i of Je) Se.remove(i.root);
   for (const i of li) Se.remove(i.root);
   for (const i of yi) (Se.remove(i.group), Mc(i));
@@ -26508,7 +26510,7 @@ Et("quit").onclick = () => {
     Et("pause").classList.add("hidden"),
     Et("hud").classList.add("hidden"),
     Et("menu").classList.remove("hidden"));
-  Ue.stopScreams();
+  (rlEndAll(0), Ue.stopScreams());
   for (const i of Je) Se.remove(i.root);
   for (const i of li) Se.remove(i.root);
   for (const i of yi) (Se.remove(i.group), Mc(i));
@@ -26825,12 +26827,107 @@ const RANGED_HOLD_MIN = 7.5,
   RANGED_DAMAGE = 8,
   RANGED_DMR_DAMAGE = 15,
   FLANK_STRENGTH = 0.85;
+const RL_URL = "http://localhost:8790",
+  RL_TICK = 0.25,
+  RL_FLUSH_EVERY = 5,
+  RL_REFRESH_EVERY = 30,
+  RL = { ready: !1, version: 0, policy: null, counter: 0, queue: [], sent: 0, decisions: 0, flushTimer: 0, refreshTimer: 0 };
+function rlInit() {
+  const ctl = new AbortController(),
+    timer = setTimeout(() => ctl.abort(), 1200);
+  fetch(RL_URL + "/policy", { signal: ctl.signal })
+    .then((r) => r.json())
+    .then((p) => ((RL.policy = p), (RL.version = p.version), (RL.ready = !0)))
+    .catch(() => {})
+    .finally(() => clearTimeout(timer));
+}
+function rlObs(e, a, c) {
+  const n = e.root.position,
+    fwd = Qt.getWorldDirection(new D()),
+    dx = (n.x - k.pos.x) / (a || 1),
+    dz = (n.z - k.pos.z) / (a || 1),
+    pv = Math.hypot(k.vel.x, k.vel.z);
+  return [
+    rn(a / 24, 0, 1),
+    c ? 1 : 0,
+    e.hp / e.maxHp,
+    e.ranged ? 1 : 0,
+    e.heavy ? 1 : 0,
+    e.stagger > 0 ? 1 : 0,
+    rn(e.attack / 2, -1, 1),
+    e.aim > 0 ? 1 : 0,
+    rn(pv / 8, 0, 1),
+    fwd.x * dx + fwd.z * dz,
+  ];
+}
+function rlAct(obs) {
+  const p = RL.policy,
+    h = new Array(p.b1.length);
+  for (let j = 0; j < h.length; j++) {
+    let s = p.b1[j];
+    for (let i = 0; i < obs.length; i++) s += obs[i] * p.W1[i][j];
+    h[j] = Math.max(0, s);
+  }
+  const z = new Array(p.b2.length);
+  let mx = -1e9;
+  for (let j = 0; j < z.length; j++) {
+    let s = p.b2[j];
+    for (let i = 0; i < h.length; i++) s += h[i] * p.W2[i][j];
+    ((z[j] = s), (mx = Math.max(mx, s)));
+  }
+  let tot = 0;
+  for (let j = 0; j < z.length; j++) ((z[j] = Math.exp(z[j] - mx)), (tot += z[j]));
+  let r = Math.random() * tot;
+  for (let j = 0; j < z.length; j++) if ((r -= z[j]) <= 0) return j;
+  return z.length - 1;
+}
+function rlReward(e, x) {
+  e.traj && e.traj.length && (e.traj[e.traj.length - 1].r += x);
+}
+function rlDealt(e, x) {
+  e.rl && rlReward(e, x * 0.1);
+}
+function rlDecide(e, a, c) {
+  const taken = (e.rlHp ?? e.hp) - e.hp;
+  ((e.rlHp = e.hp), rlReward(e, -taken * 0.03 - 0.01));
+  const obs = rlObs(e, a, c),
+    act = rlAct(obs);
+  (e.traj || (e.traj = []), e.traj.push({ o: obs, a: act, r: 0 }), (e.rlAction = act), RL.decisions++);
+}
+function rlEnd(e, bonus) {
+  if (!e.rl || !e.traj) return;
+  (rlReward(e, bonus),
+    RL.queue.push({ steps: e.traj, ranged: !!e.ranged, heavy: !!e.heavy, wave: en, version: RL.version }),
+    (e.traj = null));
+}
+function rlEndAll(bonus) {
+  for (const e of Je) rlEnd(e, bonus);
+  rlFlush();
+}
+function rlFlush() {
+  if (!RL.queue.length) return;
+  const batch = RL.queue.splice(0);
+  fetch(RL_URL + "/episodes", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ episodes: batch }),
+    keepalive: !0,
+  })
+    .then((r) => (r.ok ? (RL.sent += batch.length) : RL.queue.unshift(...batch)))
+    .catch(() => RL.queue.unshift(...batch));
+}
+function rlTick(i) {
+  ((RL.flushTimer -= i), (RL.refreshTimer -= i));
+  RL.flushTimer <= 0 && ((RL.flushTimer = RL_FLUSH_EVERY), rlFlush());
+  RL.refreshTimer <= 0 && ((RL.refreshTimer = RL_REFRESH_EVERY), rlInit());
+}
+rlInit();
 function Zv(i) {
   ((Ho -= i), Ho <= 0 && (ef(), (Ho = 0.35)));
   for (let t = Je.length - 1; t >= 0; t--) {
     const e = Je[t];
     if (!e.alive) {
-      Je.splice(t, 1);
+      (rlEnd(e, -2), Je.splice(t, 1));
       continue;
     }
     if (e.spawn > 0) {
@@ -26884,6 +26981,8 @@ function Zv(i) {
         p = _ * _ + d * d;
       p < 1.3 && p > 0.001 && ((h += (_ / p) * 0.5), (u += (d / p) * 0.5));
     }
+    const bo = o,
+      bl = l;
     if (c) {
       const g = e.flank * FLANK_STRENGTH * rn((a - 2.4) / 9, 0, 1) * (e.ranged ? 1.15 : 0.8),
         _ = Math.cos(g),
@@ -26894,6 +26993,15 @@ function Zv(i) {
     }
     let m = e.ranged && c && ((a < RANGED_HOLD_MAX && a > RANGED_HOLD_MIN) || e.aim > 0);
     e.ranged && c && a < RANGED_BREAK_OFF && ((m = !1), (o = -o), (l = -l));
+    if (e.rl && RL.ready) {
+      ((e.rlTimer = (e.rlTimer ?? 0) - i), e.rlTimer <= 0 && ((e.rlTimer = RL_TICK), rlDecide(e, a, c)));
+      const act = e.rlAction ?? 0;
+      m = act === 4;
+      act === 0 && ((o = bo), (l = bl));
+      act === 1 && ((o = -bl), (l = bo));
+      act === 2 && ((o = bl), (l = -bo));
+      act === 3 && ((o = -bo), (l = -bl));
+    }
     const f = e.stagger > 0 ? 0.25 : e.speed;
     if (
       (a > 1.45 && !m && (Ba(n, (o + h) * f * i, (l + u) * f * i, e.heavy ? 0.45 : 0.35), (e.phase += i * f * 2.7)),
@@ -26906,7 +27014,8 @@ function Zv(i) {
       a < 1.9 &&
         Math.abs(k.pos.y - 1.7) < 1.5 &&
         e.attack <= 0 &&
-        (Xh(e.heavy ? MELEE_HEAVY_DAMAGE : MELEE_DAMAGE),
+        (rlDealt(e, e.heavy ? MELEE_HEAVY_DAMAGE : MELEE_DAMAGE),
+          Xh(e.heavy ? MELEE_HEAVY_DAMAGE : MELEE_DAMAGE),
           (e.attack = e.heavy ? 1.1 : 0.8),
           (e.melee = MELEE_SWING_TIME),
           Ue.knife()),
@@ -26936,6 +27045,7 @@ function Zv(i) {
             xs(g, 9, 16768443, 1.7, 0.12, 0.13),
             xs(g, 5, 7566195, 0.9, 0.5, 0.16, new D(Pe(-0.4, 0.4), Pe(0.3, 1), Pe(-0.4, 0.4))),
             Ue.enemyShot(e.root.userData.enemyKind === "ranged-dmr" ? 1 : 0, a),
+            p && rlDealt(e, e.root.userData.enemyKind === "ranged-dmr" ? RANGED_DMR_DAMAGE : RANGED_DAMAGE),
             p && Xh(e.root.userData.enemyKind === "ranged-dmr" ? RANGED_DMR_DAMAGE : RANGED_DAMAGE),
             (e.attack = Pe(RANGED_COOLDOWN_MIN, RANGED_COOLDOWN_MAX)));
         }
@@ -27066,7 +27176,7 @@ function cf(i) {
     Gr.update(Tr),
     (pc.uniforms.time.value = Tr),
     de === "playing" && (ci || Yn)
-      ? ((Te.shadowMap.needsUpdate = !0), (sn += t), Yv(t), Zv(t), jv(t), qh(t), lowHpPulse(t))
+      ? ((Te.shadowMap.needsUpdate = !0), (sn += t), Yv(t), Zv(t), rlTick(t), jv(t), qh(t), lowHpPulse(t))
       : de === "menu"
         ? (Qt.position.set(-8 + Math.sin(Tr * 0.045) * 1.4, 5.3, 25),
           Qt.lookAt(3, 4, -10),
@@ -27095,6 +27205,7 @@ window.__BREACH__ = {
       pointerFree: Yn,
       wave: en,
       hostiles: Je.length,
+      rl: { ready: RL.ready, version: RL.version, bots: Je.filter((i) => i.rl).length, decisions: RL.decisions, queued: RL.queue.length, sent: RL.sent },
       pending: gs,
       kills: Ja,
       score: hi,
