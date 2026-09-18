@@ -25824,6 +25824,16 @@ function Lv(i, t, e = !1, n = !1, team = 1, weapon = -1) {
     rl: RL.ready,
     team,
     weapon,
+    vy: 0,
+    grounded: !0,
+    cy: 1,
+    crouchy: Math.random() < 0.5,
+    hopT: 0,
+    mag: weapon < 0 ? 0 : Oe[weapon].mag,
+    reload: 0,
+    seen: 0,
+    react: Pe(TM_REACT_MIN, TM_REACT_MAX),
+    vis: [],
   };
   if (s.rl || TM.on) {
     const mk = new ee(new fc(0.26, 0.26, 0.26, 1, 0.04), new tn({ color: team === 0 ? 5197823 : 3800968 }));
@@ -26185,15 +26195,35 @@ function unwedge(i, n, r) {
     ((i.x = best[0]), (i.z = best[1]));
   }
 }
-function slideMove(n, dx, dz, rad, fx, fz) {
+function slideMove(n, dx, dz, rad, fx, fz, r = 0) {
   const sx = n.x,
     sz = n.z,
     want = Math.hypot(dx, dz);
-  if ((Ba(n, dx, dz, rad), want < 1e-4 || Math.hypot(n.x - sx, n.z - sz) > want * 0.4)) return;
+  if ((Ba(n, dx, dz, rad, r), want < 1e-4 || Math.hypot(n.x - sx, n.z - sz) > want * 0.4)) return;
   const len = want / (Math.hypot(fx, fz) || 1);
-  Ba(n, fx * len, fz * len, rad);
-  Math.hypot(n.x - sx, n.z - sz) > want * 0.4 || Ba(n, -dz, dx, rad);
-  Math.hypot(n.x - sx, n.z - sz) > want * 0.4 || Ba(n, dz, -dx, rad);
+  Ba(n, fx * len, fz * len, rad, r);
+  Math.hypot(n.x - sx, n.z - sz) > want * 0.4 || Ba(n, -dz, dx, rad, r);
+  Math.hypot(n.x - sx, n.z - sz) > want * 0.4 || Ba(n, dz, -dx, rad, r);
+}
+function tmBotBody(e, i, c) {
+  const n = e.root.position,
+    wp = Oe[e.weapon],
+    feet = n.y;
+  ((e.vy -= 17 * i), (n.y += e.vy * i), (e.hopT -= i));
+  let gnd = 0;
+  for (const u of Gr.colliders)
+    u.y1 < 3.5 && Math.abs(n.x - u.x) < u.w + 0.35 && Math.abs(n.z - u.z) < u.d + 0.35 && feet >= u.y1 - 0.3 && e.vy <= 0 && (gnd = Math.max(gnd, u.y1));
+  (n.y > gnd + 0.04 && (e.grounded = !1), n.y <= gnd && ((n.y = gnd), (e.vy = 0), (e.grounded = !0)));
+  e.grounded && e.hopT <= 0 && !e.hold && sn - (e.lastHurt ?? -10) < 1.5 && Math.random() < i * TM_HOP_RATE && ((e.vy = TM_JUMP), (e.grounded = !1), (e.hopT = 1.2));
+  const crouch = e.crouchy && e.grounded && c && (e.hold || e.aim > 0 || e.burst > 0);
+  ((e.cy = Tn(e.cy, crouch ? TM_CROUCH : 1, 13, i)), (e.root.scale.y = (e.heavy ? 1.1 : 1) * e.cy));
+  e.reload > 0 && ((e.reload -= i), e.reload <= 0 && (e.mag = wp.mag));
+  e.reload <= 0 && !(e.burst > 0) && !(e.aim > 0) && (e.mag <= 0 || (e.mag < wp.mag * 0.3 && !c)) && (e.reload = wp.reload);
+}
+function tmBotHop(e, n, o, l) {
+  if (!TM.on || !e.grounded || e.hopT > 0) return;
+  const b = boxed(n.x + o * 0.7, n.z + l * 0.7, 0.35, n.y, null);
+  b && b.y1 - n.y <= 1.0 && ((e.vy = TM_JUMP), (e.grounded = !1), (e.hopT = 1.2));
 }
 const Gh = [
   [-30, 27],
@@ -26331,7 +26361,7 @@ function Vv() {
         { y: 1.13, r: 0.44, head: !1 },
         { y: 0.57, r: 0.33, head: !1 },
       ]) {
-        (Go.center.set(g.root.position.x, g.root.position.y + d.y * _, g.root.position.z), (Go.radius = d.r * _));
+        (Go.center.set(g.root.position.x, g.root.position.y + d.y * _ * (g.cy ?? 1), g.root.position.z), (Go.radius = d.r * _));
         const p = Wh.intersectSphere(Go, Hv);
         if (p) {
           const w = Qt.position.distanceTo(p);
@@ -26343,7 +26373,7 @@ function Vv() {
     if ((o < 3 && tf(t, f), u)) {
       ((n = !0), (r ||= m));
       const g = Ut === 1 ? rn(SHOTGUN_CLOSE_MULT - h / SHOTGUN_FALLOFF_METERS, 0.22, SHOTGUN_CLOSE_MULT) : 1;
-      let _ = m ? (TM.on ? i.damage * TM_HEAD_MULT : HEADSHOT_LETHAL_DAMAGE) : i.damage * g;
+      let _ = (m ? (TM.on ? i.damage * TM_HEAD_MULT : HEADSHOT_LETHAL_DAMAGE) : i.damage * g) * (TM.on ? TM_DAMAGE_MULT : 1);
       const d = e.get(u) || { damage: 0, head: !1, point: f, direction: _r.clone() };
       ((d.damage += _),
         (d.head ||= m),
@@ -26690,11 +26720,13 @@ document.addEventListener("keydown", (i) => {
         ((k.slide = 0.85), (k.stamina -= 22), k.slideDir.copy(k.vel).setY(0).normalize(), Ue.burst(0.6, 0.08, 950))));
 });
 document.addEventListener("keyup", (i) => Fe.delete(i.code));
+const DBG_NOPAUSE = new URLSearchParams(location.search).has("nopause"),
+  DBG_NORENDER = new URLSearchParams(location.search).has("norender");
 document.addEventListener("visibilitychange", () => {
-  document.hidden && de === "playing" && !TM.auto && (document.exitPointerLock?.(), $a());
+  document.hidden && de === "playing" && !TM.auto && !DBG_NOPAUSE && (document.exitPointerLock?.(), $a());
 });
 window.addEventListener("blur", () => {
-  (Fe.clear(), (bi = Ei = !1), de === "playing" && !TM.auto && (document.exitPointerLock?.(), $a()));
+  DBG_NOPAUSE || (Fe.clear(), (bi = Ei = !1), de === "playing" && !TM.auto && (document.exitPointerLock?.(), $a()));
 });
 window.addEventListener(
   "wheel",
@@ -26953,19 +26985,30 @@ const RL_URL = "http://localhost:8790",
   RL_TAKEN_COST = 0.03,
   TM_SIZE = 10,
   TM_ROUND_MAX = 240,
+  TM_FIRE_RANGE = 36,
+  TM_SIGHT = 48,
+  TM_MEMORY = 12,
+  TM_DAMAGE_MULT = 0.6,
+  TM_REACT_MIN = 0.3,
+  TM_REACT_MAX = 0.6,
+  TM_CROUCH = 1.25 / 1.7,
+  TM_JUMP = 6.1,
+  TM_HOP_RATE = 0.7,
+  tmMem = [new Map(), new Map()],
   TM_SPAWNS = [
     [
-      [-30, 27],
       [30, 28],
-      [-16, 30],
+      [28, -23],
+      [20, -14],
       [20, 29],
+      [30, -12],
     ],
     [
-      [-9, -29],
-      [28, -23],
+      [-30, 27],
       [-30, -16],
-      [3, -23],
-      [20, -14],
+      [-16, 30],
+      [-30, 0],
+      [-9, -29],
     ],
   ],
   TM_NAMES = ["ALPHA", "BRAVO"],
@@ -27003,22 +27046,27 @@ function tmPlayerTarget() {
     weapon: Ut / 3,
     lastHurt: k.lastHurt,
     ent: null,
+    h: k.height / 1.7,
   };
+}
+function tmGhost(x, z) {
+  return { pos: new D(x, 1.7, z), vel: new D(), fwd: new D(1, 0, 0), hp: 1, air: 0, slide: 0, reload: 0, ads: 0, weapon: 0, lastHurt: -10, ent: null, ghost: !0, h: 1 };
 }
 function tmBotTarget(g) {
   const yaw = g.root.rotation.y;
   return {
-    pos: g.root.position.clone().setY(g.root.position.y + 1.7),
+    pos: g.root.position.clone().setY(g.root.position.y + 1.7 * (g.cy ?? 1)),
     vel: g.vel ?? new D(),
     fwd: new D(Math.sin(yaw), 0, Math.cos(yaw)),
     hp: g.hp / g.maxHp,
-    air: 0,
+    air: g.grounded === !1 ? 1 : 0,
     slide: 0,
-    reload: g.aim > 0 ? 1 : 0,
+    reload: g.reload > 0 || g.aim > 0 ? 1 : 0,
     ads: 0,
     weapon: TM.on ? (g.weapon ?? 0) / 3 : g.ranged ? (g.root.userData.enemyKind === "ranged-dmr" ? 2 / 3 : 1 / 3) : 0,
     lastHurt: g.lastHurt ?? -10,
     ent: g,
+    h: g.cy ?? 1,
   };
 }
 function tmTarget(e) {
@@ -27027,14 +27075,42 @@ function tmTarget(e) {
     bd = 1e9;
   if (e.team === 1 && k.health > 0) ((best = tmPlayerTarget()), (bd = Math.hypot(k.pos.x - n.x, k.pos.z - n.z)));
   if (!TM.on) return best;
-  for (const g of Je) {
-    if (g === e || !g.alive || g.spawn > 0 || g.screamer || g.team === e.team) continue;
-    const d = Math.hypot(g.root.position.x - n.x, g.root.position.z - n.z);
-    d < bd && ((bd = d), (best = tmBotTarget(g)));
+  ((best = null), (bd = 1e9));
+  for (const v of e.vis || []) {
+    if (v === k ? k.health <= 0 : !v.alive || v.spawn > 0) continue;
+    const p = v === k ? k.pos : v.root.position,
+      d = Math.hypot(p.x - n.x, p.z - n.z);
+    d < bd && ((bd = d), (best = v === k ? tmPlayerTarget() : tmBotTarget(v)));
+  }
+  if (best) return best;
+  for (const [v, m] of tmMem[e.team]) {
+    const d = Math.hypot(m.x - n.x, m.z - n.z);
+    d < bd && ((bd = d), (best = tmGhost(m.x, m.z)));
+  }
+  if (best) return best;
+  for (const p of TM_SPAWNS[1 - e.team]) {
+    const d = Math.hypot(p[0] - n.x, p[1] - n.z);
+    d < bd && ((bd = d), (best = tmGhost(p[0], p[1])));
   }
   return best;
 }
+function tmVisUpdate() {
+  for (const e of Je) {
+    if (!e.alive || e.screamer || e.spawn > 0) continue;
+    const n = e.root.position,
+      vis = [],
+      mem = tmMem[e.team],
+      see = (v, p) => {
+        Math.hypot(p.x - n.x, p.z - n.z) <= TM_SIGHT && zv(n, p) && (vis.push(v), mem.set(v, { x: p.x, z: p.z, at: sn }));
+      };
+    e.team === 1 && k.health > 0 && see(k, k.pos);
+    for (const g of Je) g !== e && g.alive && g.spawn <= 0 && !g.screamer && g.team !== e.team && see(g, g.root.position);
+    e.vis = vis;
+  }
+  for (const mem of tmMem) for (const [v, m] of mem) ((v === k ? k.health <= 0 : !v.alive) || sn - m.at > TM_MEMORY) && mem.delete(v);
+}
 function tmHurt(T, dmg, from) {
+  if (T.ghost) return;
   if (!T.ent) {
     Xh(dmg);
     return;
@@ -27061,7 +27137,7 @@ function tmSpawnPoint(team) {
 }
 function tmRound() {
   for (const g of Je) Se.remove(g.root);
-  ((Je.length = 0), TM.round++, (en = TM.round), (gs = 0), (ms = 0), (Fa = 0), (Mi = 0), (TM.next = 0), (TM.clock = 0), (Ho = 0));
+  ((Je.length = 0), TM.round++, (en = TM.round), (gs = 0), (ms = 0), (Fa = 0), (Mi = 0), (TM.next = 0), (TM.clock = 0), (Ho = 0), tmMem[0].clear(), tmMem[1].clear());
   for (let team = 0; team < 2; team++) {
     const bots = team === 0 && !TM.auto ? TM_SIZE - 1 : TM_SIZE;
     for (let j = 0; j < bots; j++) {
@@ -27069,7 +27145,8 @@ function tmRound() {
       Lv(p[0], p[1], !1, !0, team, Math.floor(Math.random() * Oe.length));
     }
   }
-  (k.pos.set(0, 1.7, 20), k.vel.set(0, 0, 0), (k.health = TM.auto ? 0 : 100), (k.lastHurt = -10));
+  const ps = tmSpawnPoint(0);
+  (k.pos.set(ps[0], 1.7, ps[1]), k.vel.set(0, 0, 0), (k.health = TM.auto ? 0 : 100), (k.lastHurt = -10));
   (_c(`ROUND ${String(TM.round).padStart(2, "0")}`, `${TM_NAMES[0]} ${TM.wins[0]} : ${TM.wins[1]} ${TM_NAMES[1]}`, 3), Ue.wave(), Xn());
 }
 function tmRespawn() {
@@ -27266,12 +27343,12 @@ function rayBox(o, d, max) {
   }
   return best;
 }
-function rayBody(o, d, fx, fy, fz, scale, max) {
+function rayBody(o, d, fx, fy, fz, scale, max, cy = 1) {
   Wh.set(o, d);
   let t = max,
     head = !1;
   for (const pt of BODY_PARTS) {
-    (Go.center.set(fx, fy + pt.y * scale, fz), (Go.radius = pt.r * scale));
+    (Go.center.set(fx, fy + pt.y * scale * cy, fz), (Go.radius = pt.r * scale));
     const h = Wh.intersectSphere(Go, Hv);
     if (h) {
       const w = o.distanceTo(h);
@@ -27294,7 +27371,7 @@ function botShot(e, g, w, sp = RANGED_SPREAD * (e.heavy ? 1.3 : 1), max = RANGED
   }
   for (const b of Je) {
     if (b === e || !b.alive || b.spawn > 0 || b.screamer) continue;
-    const hit = rayBody(g, d, b.root.position.x, b.root.position.y, b.root.position.z, b.heavy ? 1.1 : 1, t);
+    const hit = rayBody(g, d, b.root.position.x, b.root.position.y, b.root.position.z, b.heavy ? 1.1 : 1, t, b.cy ?? 1);
     hit && ((t = hit.t), (victim = b.team !== e.team ? tmBotTarget(b) : null), (head = hit.head));
   }
   const end = g.clone().addScaledVector(d, t);
@@ -27303,11 +27380,13 @@ function botShot(e, g, w, sp = RANGED_SPREAD * (e.heavy ? 1.3 : 1), max = RANGED
 function tmBotFire(e, g, w, a) {
   const wp = Oe[e.weapon],
     hits = new Map();
+  if (e.mag <= 0) return;
+  e.mag--;
   for (let p = 0; p < wp.pellets; p++) {
-    const shot = botShot(e, g, w, wp.spread, wp.range);
+    const shot = botShot(e, g, w, wp.spread, Math.min(wp.range, TM_FIRE_RANGE));
     if (!shot.victim) continue;
     const fall = wp.pellets > 1 ? rn(SHOTGUN_CLOSE_MULT - shot.dist / SHOTGUN_FALLOFF_METERS, 0.22, SHOTGUN_CLOSE_MULT) : 1,
-      dmg = shot.head ? wp.damage * TM_HEAD_MULT : wp.damage * fall,
+      dmg = (shot.head ? wp.damage * TM_HEAD_MULT : wp.damage * fall) * TM_DAMAGE_MULT,
       key = shot.victim.ent ?? k,
       h = hits.get(key) || { victim: shot.victim, dmg: 0, dist: shot.dist };
     ((h.dmg += dmg), hits.set(key, h));
@@ -27319,9 +27398,13 @@ function tmBotFire(e, g, w, a) {
 }
 function tmBotBurst(e, i, a, T) {
   if (!(e.burst > 0)) return;
+  if (e.mag <= 0 || T.ghost || !zv(e.root.position, T.pos)) {
+    e.burst = 0;
+    return;
+  }
   if (((e.burstT -= i), e.burstT > 0)) return;
   const wp = Oe[e.weapon],
-    g = e.root.position.clone().add(new D(0.2, 1.3, 0.3)),
+    g = e.root.position.clone().add(new D(0.2, 1.3 * e.cy, 0.3)),
     w = e.aimAnchor.clone().addScaledVector(e.aimVel, RL_LEAD[e.rlAim ?? 0]);
   (tmBotFire(e, g, w, a), e.burst--, (e.burstT = wp.interval));
 }
@@ -27356,12 +27439,15 @@ function rlFlush() {
     .catch(() => RL.queue.unshift(...batch));
 }
 function rlMelee(e, a, T) {
-  if ((e.ranged && (!TM.on || a >= KNIFE_RANGE)) || e.rlFire !== 1 || e.attack > 0) return;
+  if ((e.ranged && (!TM.on || a >= KNIFE_RANGE)) || e.rlFire !== 1 || e.attack > 0 || T.ghost) return;
   e.rlFire = 0;
   if (a < KNIFE_RANGE && Math.abs(T.pos.y - 1.7) < 1.5) {
     const dmg = TM.on ? KNIFE_DAMAGE : e.heavy ? MELEE_HEAVY_DAMAGE : MELEE_DAMAGE;
     (rlDealt(e, dmg), tmHurt(T, dmg, e), (e.attack = TM.on ? KNIFE_COOLDOWN : e.heavy ? 1.1 : 0.8), (e.melee = MELEE_SWING_TIME), T.ent || Ue.knife());
   } else ((e.attack = 0.5), (e.melee = MELEE_SWING_TIME));
+}
+function tmFireOk(e, a, c) {
+  return c && e.seen >= e.react && a <= TM_FIRE_RANGE && e.reload <= 0 && e.mag > 0;
 }
 function rlRanged(e, i, a, c, T) {
   if (!e.ranged) return;
@@ -27372,7 +27458,11 @@ function rlRanged(e, i, a, c, T) {
   }
   if (e.aim > 0) {
     if (((e.aim -= i), e.aim > 0)) return;
-    const g = n.clone().add(new D(0.2, 1.3, 0.3)),
+    if (TM.on && (!c || e.mag <= 0)) {
+      e.attack = 0.35;
+      return;
+    }
+    const g = n.clone().add(new D(0.2, 1.3 * (e.cy ?? 1), 0.3)),
       w = e.aimAnchor.clone().addScaledVector(e.aimVel, RL_LEAD[e.rlAim ?? 0]);
     if (TM.on) {
       const wp = Oe[e.weapon];
@@ -27387,10 +27477,10 @@ function rlRanged(e, i, a, c, T) {
       Ue.enemyShot(dmr ? 1 : 0, a),
       shot.victim && (rlDealt(e, dmg, shot.dist), tmHurt(shot.victim, dmg, e)),
       (e.attack = Pe(RANGED_COOLDOWN_MIN, RANGED_COOLDOWN_MAX)));
-  } else if (e.rlFire === 1 && e.attack <= 0 && !(TM.on && a < KNIFE_RANGE)) {
+  } else if (e.rlFire === 1 && e.attack <= 0 && !(TM.on && (a < KNIFE_RANGE || !tmFireOk(e, a, c)))) {
     ((e.rlFire = 0),
       (e.aim = RANGED_AIM_WINDUP * (e.heavy ? 1.2 : 1)),
-      e.aimAnchor.copy(T.pos).setY(T.pos.y - (TM.on ? TM_AIM_DROP : 0)),
+      e.aimAnchor.copy(T.pos).setY(T.pos.y - (TM.on ? TM_AIM_DROP * (T.h ?? 1) : 0)),
       (e.aimVel = new D(T.vel.x, 0, T.vel.z)),
       xs(n.clone().add(new D(0.2, 1.3, 0.3)), 2, 16733525, 0.6, 0.05, 0.05));
   }
@@ -27404,8 +27494,10 @@ function rlTick(i) {
 }
 function tmFieldsUpdate() {
   const seeds = [[], []];
-  for (const g of Je) g.alive && !g.screamer && seeds[1 - g.team].push(gc(g.root.position.x, g.root.position.z));
-  k.health > 0 && seeds[1].push(gc(k.pos.x, k.pos.z));
+  for (let team = 0; team < 2; team++) {
+    for (const [, m] of tmMem[team]) seeds[team].push(gc(m.x, m.z));
+    if (!seeds[team].length) for (const p of TM_SPAWNS[1 - team]) seeds[team].push(gc(p[0], p[1]));
+  }
   (tmFill(tmFields[0], seeds[0]), tmFill(tmFields[1], seeds[1]));
 }
 function Jv(n, o, l, f = ii) {
@@ -27430,7 +27522,7 @@ function Jv(n, o, l, f = ii) {
 }
 rlInit();
 function Zv(i) {
-  ((Ho -= i), Ho <= 0 && (ef(), TM.on && tmFieldsUpdate(), (Ho = 0.35)));
+  ((Ho -= i), Ho <= 0 && (ef(), TM.on && (tmVisUpdate(), tmFieldsUpdate()), (Ho = 0.35)));
   for (let t = Je.length - 1; t >= 0; t--) {
     const e = Je[t];
     if (!e.alive) {
@@ -27458,7 +27550,8 @@ function Zv(i) {
       a = Math.hypot(r, s);
     let o = r / (a || 1),
       l = s / (a || 1);
-    const c = zv(n, T.pos);
+    const c = !T.ghost && zv(n, T.pos);
+    TM.on && (c ? (e.seen += i) : ((e.seen = 0), (e.react = Pe(TM_REACT_MIN, TM_REACT_MAX))), tmBotBody(e, i, c));
     ((e.flank ??= Math.random() < 0.5 ? -1 : 1),
       (e.flankTimer ??= Pe(1.2, 3.2)),
       (e.aim ??= 0),
@@ -27501,9 +27594,10 @@ function Zv(i) {
     }
     const f = e.stagger > 0 ? 0.25 : e.speed;
     if (
-      (a > 1.45 && !m && (slideMove(n, (o + h) * f * i, (l + u) * f * i, e.heavy ? 0.45 : 0.35, ...Jv(n, o, l, TM.on ? tmFields[e.team] : ii)), (e.phase += i * f * 2.7)),
+      (e.hold = m),
+      (a > 1.45 && !m && (tmBotHop(e, n, o, l), slideMove(n, (o + h) * f * i, (l + u) * f * i, e.heavy ? 0.45 : 0.35, ...Jv(n, o, l, TM.on ? tmFields[e.team] : ii), n.y), (e.phase += i * f * 2.7)),
       e.knockback &&
-        (Ba(n, e.knockback.x * i, e.knockback.z * i, e.heavy ? 0.45 : 0.35),
+        (Ba(n, e.knockback.x * i, e.knockback.z * i, e.heavy ? 0.45 : 0.35, n.y),
         e.knockback.multiplyScalar(Math.exp(-i * 4.5))),
       (e.root.rotation.y = Math.atan2(r, s)),
       (e.lookYaw = 0),
@@ -27511,13 +27605,14 @@ function Zv(i) {
       e.rl && RL.ready
         ? rlMelee(e, a, T)
         : a < 1.9 &&
+          !T.ghost &&
           Math.abs(T.pos.y - 1.7) < 1.5 &&
           e.attack <= 0 &&
           (tmHurt(T, TM.on ? KNIFE_DAMAGE : e.heavy ? MELEE_HEAVY_DAMAGE : MELEE_DAMAGE, e),
             (e.attack = TM.on ? KNIFE_COOLDOWN : e.heavy ? 1.1 : 0.8),
             (e.melee = MELEE_SWING_TIME),
             Ue.knife()),
-      !(e.rl && RL.ready) && e.ranged && c && a < 24 && a > 3)
+      !(e.rl && RL.ready) && e.ranged && c && a < 24 && a > 3 && (!TM.on || tmFireOk(e, a, c)))
     ) {
       if (e.aim > 0) {
         if (((e.aim -= i), e.aimAnchor.lerp(T.pos, Math.min(1, i * 2.1)), e.aim <= 0)) {
@@ -27540,7 +27635,7 @@ function Zv(i) {
                 ),
               ),
             TM.on
-              ? tmBotFire(e, g, w, a)
+              ? c && tmBotFire(e, g, w, a)
               : (tf(g, w, !0),
                 xs(g, 9, 16768443, 1.7, 0.12, 0.13),
                 xs(g, 5, 7566195, 0.9, 0.5, 0.16, new D(Pe(-0.4, 0.4), Pe(0.3, 1), Pe(-0.4, 0.4))),
@@ -27551,7 +27646,7 @@ function Zv(i) {
       } else
         e.attack <= 0 &&
           ((e.aim = RANGED_AIM_WINDUP * (e.heavy ? 1.2 : 1) * Pe(0.85, 1.2)),
-          e.aimAnchor.copy(T.pos).setY(T.pos.y - (TM.on ? TM_AIM_DROP : 0)),
+          e.aimAnchor.copy(T.pos).setY(T.pos.y - (TM.on ? TM_AIM_DROP * (T.h ?? 1) : 0)),
           xs(n.clone().add(new D(0.2, 1.3, 0.3)), 2, 16733525, 0.6, 0.05, 0.05));
     } else e.rl && RL.ready ? rlRanged(e, i, a, c, T) : (e.aim = 0);
   }
@@ -27683,7 +27778,7 @@ function cf(i) {
           Qt.updateProjectionMatrix(),
           qh(t))
         : de === "dead" && ((kn = Tn(kn, 0, 3, t)), (Et("damage").style.opacity = kn * 0.6)),
-    TM.auto || tmRender(t));
+    TM.auto || DBG_NORENDER || tmRender(t));
 }
 function tmRender(t) {
   (Cv(Se, Je, li),
@@ -27708,6 +27803,9 @@ window.__BREACH__ = {
   },
   get enemies() {
     return Je;
+  },
+  start(team) {
+    ((TM.on = !!team), (RL.resume = !1), of(), af());
   },
   get weapons() {
     return Oe;

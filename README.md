@@ -5,7 +5,7 @@
 Fork of `alesha-pro/bench-portal @ 2fa5c82` → `games/breach-blacksite-astra`.
 
 Static Three.js horde-survival FPS. No build step: `index.html` + prebuilt bundle in `assets/`.
-Upstream ships only build output, so tuning happens directly in `assets/index-df1d2e24.js`
+Upstream ships only build output, so tuning happens directly in `assets/index-01be8758.js`
 (game logic lives in the tail of the file) and in `assets/index-49044fd1.css` / `index.html`
 (both unminified-friendly).
 
@@ -89,18 +89,23 @@ kill or team bonus. Each head samples with 10 % uniform exploration. Weights per
 ## Team deathmatch (local only)
 
 The menu's second button, TEAM DEATHMATCH 10v10, splits the map: ALPHA spawns along the
-north edge (z > 0), BRAVO along the south (z < 0). You are on ALPHA with 9 bots; BRAVO
-fields 10. Every bot is a soldier with a rifle drawn at random from your own weapon table
+east edge (x > 0), BRAVO along the west (x < 0), so the long open lanes along the north and
+south walls cross the front instead of running parallel to it. You are on ALPHA with 9
+bots and start at an ALPHA spawn; BRAVO fields 10. Every bot is a soldier with a rifle drawn at random from your own weapon table
 (MK18, M590, MK14, P226), driven by the same RL nets as survival. Blue marker cube = ALPHA,
 green = BRAVO.
 
-Bots pick the nearest living enemy across both teams (the player counts for BRAVO) and
-fight it with the same melee / ranged code that survival uses against you; the target's
-feature slots in the observation (health, velocity, facing, reload...) are filled from
-whatever they are hunting, so the trained weights apply unchanged. Each team gets its own
-flow field, a multi-source BFS from every living enemy, so bots without line of sight
-path towards the closest one instead of hugging walls. Bot models face their own target,
-not you.
+Bots only know what they have seen. Every 0.35 s each bot casts line-of-sight rays to
+every enemy within 48 m; the ones it can see are its candidates, and it hunts the nearest
+of them with the same melee / ranged code that survival uses against you (the target's
+feature slots in the observation are filled from whatever it is hunting, so the trained
+weights apply unchanged). Every sighting is written to a team memory (last seen x/z per
+enemy, 12 s expiry, cleared at round start). A bot that sees nobody heads for the nearest
+remembered position as a ghost target: it walks there, its observation says no line of
+sight, and it cannot shoot or stab a ghost. With no memory at all the team heads for the
+enemy spawn points. Each team's flow field, a multi-source BFS, is seeded from that memory
+(or the enemy spawns), never from live enemy positions, so nothing is sensed through walls.
+Bot models face their own target, not you.
 
 A round ends when one side has nobody left. You respawn at an ALPHA spawn while any ALPHA
 bot is alive; once the last one falls, your death ends the round. Five seconds later the
@@ -111,15 +116,40 @@ not touch the survival save.
 Stats are the same on both sides in team mode. Bots have 100 hp, run at your walking speed
 (5.1 m/s) and shoot with the weapon table's numbers: the same damage, pellet count, angular
 spread and range as the gun in your hands, headshots x2.5 for everyone (survival's one-shot
-kill on bots is off). Shotgun falloff is the same curve. A bot's trigger pull is the 0.72 s
-windup, then a burst at the weapon's own fire interval (4 rounds for the MK18, 2 for the
-MK14 / P226, 1 shell for the M590), then a 1.7-2.9 s pause; bots aim at the chest, so their
-headshots come from spread the same way yours do. Bots never reload and carry no ammo,
-which is the one asymmetry left; you can fire freely between their bursts. Both sides
-carry a knife: `F` swings it (40 damage, 1.9 m reach, 0.8 s cooldown; the old inspect
-animation is gone), and a bot inside 1.9 m of its target stabs instead of shooting. In
-team mode observation slot 3 holds the bot's own weapon index / 3 instead of the heavy
-flag.
+kill on bots is off). All gun damage in team mode, yours and theirs, is scaled by 0.6
+(knife stays 40): MK18 17 per round, MK14 55, P226 22, M590 11 per pellet before the
+shotgun curve, so an MK18 burst no longer kills from full health and only the MK14
+headshot is still a one-shot. Shotgun falloff is the same curve for both: each pellet's
+damage is scaled by `2.15 - dist / 13`, clamped to 0.22..2.15, so a pellet does 2.15x at
+the muzzle, 1x at 15 m, and 0.22x from 25 m out, on top of the 0.048 rad spread that
+scatters the pattern over 3 m at 30 m and the 37 m ray limit.
+
+A bot's trigger pull is the 0.72 s windup, then a burst at the weapon's own fire interval
+(4 rounds for the MK18, 2 for the MK14 / P226, 1 shell for the M590), then a 1.7-2.9 s
+pause; bots aim at the chest, so their headshots come from spread the same way yours do.
+Before the windup can start the bot must have had continuous line of sight to its target
+for a reaction time drawn per sighting from 0.3..0.6 s, so the first bullet comes 1.0..1.3
+s after you show yourself, and the target must be inside 36 m (about half the map; the
+ray is capped there too, so no bot fires across the whole arena). If line of sight is lost
+while winding up the bot holds fire; if it is lost mid-burst the burst stops. Bots carry
+magazines from the same table (30 / 8 / 16 / 24) and reload with the same timings (1.85 /
+2.65 / 2.25 / 2.1 s) when empty, or when under 30 % and out of sight; a reloading bot
+cannot start a windup and shows as reloading in its enemies' observation (slot 13).
+Reserve ammo is infinite for bots. Both sides carry a knife: `F` swings it (40 damage,
+1.9 m reach, 0.8 s cooldown; the old inspect animation is gone), and a bot inside 1.9 m of
+its target stabs instead of shooting. In team mode observation slot 3 holds the bot's own
+weapon index / 3 instead of the heavy flag.
+
+Bots have vertical physics in team mode: gravity 17, jump 6.1 m/s (same as you), landing
+on box tops, and their box collisions are filtered by feet height like yours. A bot hops
+over a box up to 1 m above its feet that blocks its path (the 0.7 m posts; barriers and
+crates are as unjumpable for them as for you), and a moving bot that was hit in the last
+1.5 s hops randomly (0.7 per second) as a dodge. Half the bots per round are crouchers:
+while they hold position, wind up or burst with the target in sight they crouch to 1.25 / 1.7
+of their height,
+which lowers the head / torso / legs spheres and the muzzle the same way (their model is
+squashed on Y so you can read it). No RL head drives jump or crouch yet; that would need
+an observation change and a policy migration.
 A round also ends after 240 s of sim time as a draw, so camping shooters cannot stall it.
 
 ## Collision
@@ -169,4 +199,7 @@ the live player object (`pos` is the eye, feet are `pos.y - height`) and `__BREA
 the box list, `__BREACH__.enemies` the live bot list, `__BREACH__.weapons` the weapon table
 and `__BREACH__.shoot(bot, target)` fires one probe ray from a bot's muzzle at a target's
 chest with the bot's weapon spread (returns victim / head / dist), so collision and hit
-cases can be reproduced from the console by teleporting.
+cases can be reproduced from the console by teleporting. `__BREACH__.start(team)` starts a
+round from script (team mode when truthy). Query flags for harnesses: `?nopause` keeps
+the sim running when the tab loses focus or the pointer lock, `?norender` skips drawing
+(headless Chrome on swiftshader otherwise runs the sim 10x slow).
