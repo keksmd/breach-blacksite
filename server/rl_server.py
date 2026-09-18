@@ -2,10 +2,11 @@
 """Local RL backend for BREACH bots.
 
 Run it next to the game (python3 server/rl_server.py) and the game will hand
-every second bot to the policy served here. Episodes arrive on POST /episodes,
-land in server/data/episodes.jsonl, and a background thread retrains the
-policy with REINFORCE every TRAIN_EVERY seconds. GET /policy returns the
-current weights, GET /stats shows how much has been collected. GET/POST /save
+every second bot to the policies served here: one net for melee hostiles,
+one for shooters, each trained only on its own class. Episodes arrive on
+POST /episodes, land in server/data/episodes.jsonl, and a background thread
+retrains both with REINFORCE every TRAIN_EVERY seconds. GET /policy returns
+the current weights, GET /stats shows how much has been collected. GET/POST /save
 keeps the player's run (wave, score, ammo) so a page reload resumes it.
 """
 import json
@@ -20,11 +21,11 @@ import numpy as np
 HERE = os.path.dirname(os.path.abspath(__file__))
 DATA = os.path.join(HERE, "data")
 EP_FILE = os.path.join(DATA, "episodes.jsonl")
-POLICY_FILE = os.path.join(DATA, "policy.json")
+POLICY_FILES = {"melee": os.path.join(DATA, "policy_melee.json"), "ranged": os.path.join(DATA, "policy_ranged.json")}
 SAVE_FILE = os.path.join(DATA, "save.json")
 PORT = int(os.environ.get("RL_PORT", "8790"))
 
-OBS, HID, ACT = 10, 32, 6
+OBS, HID, ACT = 24, 48, 6
 GAMMA = 0.96
 LR = 2e-3
 EPOCHS = 4
@@ -38,13 +39,14 @@ os.makedirs(DATA, exist_ok=True)
 lock = threading.Lock()
 episodes = []
 new_since_train = 0
-last_train = {"at": None, "episodes": 0, "steps": 0, "loss": None}
+last_train = {"at": None, "melee": None, "ranged": None}
 
 
 class Policy:
     """Two-layer MLP with a softmax head, trained by hand-rolled Adam."""
 
-    def __init__(self):
+    def __init__(self, name):
+        self.name = name
         rng = np.random.default_rng(0)
         self.W1 = rng.normal(0, 0.3, (OBS, HID))
         self.b1 = np.zeros(HID)
@@ -117,13 +119,28 @@ class Policy:
         self.v = [np.zeros_like(p) for p in self.params()]
 
     def save(self):
-        tmp = POLICY_FILE + ".tmp"
+        path = POLICY_FILES[self.name]
+        tmp = path + ".tmp"
         with open(tmp, "w") as f:
             json.dump(self.to_json(), f)
-        os.replace(tmp, POLICY_FILE)
+        os.replace(tmp, path)
 
 
-policy = Policy()
+policies = {"melee": Policy("melee"), "ranged": Policy("ranged")}
+
+
+def class_of(ep):
+    return "ranged" if ep.get("ranged") else "melee"
+
+
+def policy_json():
+    return {
+        "version": sum(p.version for p in policies.values()),
+        "obs": OBS,
+        "actions": ACT,
+        "melee": policies["melee"].to_json(),
+        "ranged": policies["ranged"].to_json(),
+    }
 
 
 def valid(ep):
@@ -155,10 +172,14 @@ def returns_of(ep):
 def train_once():
     global new_since_train
     with lock:
-        if len(episodes) < MIN_EPISODES:
-            return
-        batch = episodes[-WINDOW:]
         new_since_train = 0
+        by_class = {name: [e for e in episodes if class_of(e) == name][-WINDOW:] for name in policies}
+    for name, batch in by_class.items():
+        if len(batch) >= MIN_EPISODES:
+            train_class(policies[name], batch)
+
+
+def train_class(policy, batch):
     X, A, G = [], [], []
     for ep in batch:
         rets = returns_of(ep)
@@ -180,8 +201,9 @@ def train_once():
                 loss = policy.step(X[sel], A[sel], adv[sel])
         policy.version += 1
         policy.save()
-        last_train.update(at=time.time(), episodes=len(batch), steps=len(X), loss=loss)
-    print(f"[train] v{policy.version} episodes={len(batch)} steps={len(X)} loss={loss:.4f} mean_return={G.mean():.3f}", flush=True)
+        last_train["at"] = time.time()
+        last_train[policy.name] = {"version": policy.version, "episodes": len(batch), "steps": len(X), "loss": loss, "mean_return": float(G.mean())}
+    print(f"[train] {policy.name} v{policy.version} episodes={len(batch)} steps={len(X)} loss={loss:.4f} mean_return={G.mean():.3f}", flush=True)
 
 
 def trainer():
@@ -218,7 +240,7 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == "/policy":
             with lock:
-                self.reply(200, policy.to_json())
+                self.reply(200, policy_json())
         elif self.path == "/save":
             with lock:
                 self.reply(200, read_save())
@@ -229,8 +251,10 @@ class Handler(BaseHTTPRequestHandler):
                 self.reply(
                     200,
                     {
-                        "version": policy.version,
+                        "version": sum(p.version for p in policies.values()),
+                        "versions": {name: p.version for name, p in policies.items()},
                         "episodes": len(episodes),
+                        "episodes_by_class": {name: sum(1 for e in episodes if class_of(e) == name) for name in policies},
                         "steps": sum(len(e["steps"]) for e in episodes),
                         "pending": new_since_train,
                         "mean_return_last_100": mean_ret,
@@ -294,9 +318,10 @@ def write_save(d):
 
 def load_state():
     global new_since_train
-    if os.path.exists(POLICY_FILE):
-        with open(POLICY_FILE) as f:
-            policy.load(json.load(f))
+    for name, path in POLICY_FILES.items():
+        if os.path.exists(path):
+            with open(path) as f:
+                policies[name].load(json.load(f))
     if os.path.exists(EP_FILE):
         with open(EP_FILE) as f:
             for line in f:
@@ -310,7 +335,7 @@ def load_state():
                 if valid(ep):
                     episodes.append(ep)
     new_since_train = 0
-    print(f"[boot] policy v{policy.version}, {len(episodes)} episodes on disk", flush=True)
+    print(f"[boot] melee v{policies['melee'].version}, ranged v{policies['ranged'].version}, {len(episodes)} episodes on disk", flush=True)
 
 
 if __name__ == "__main__":

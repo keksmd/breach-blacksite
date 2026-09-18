@@ -26885,28 +26885,53 @@ function rlRestore() {
   Array.isArray(sv.reserve) && sv.reserve.length === Cn.length && (Cn = sv.reserve.map((v, i) => rn(v | 0, 0, Oe[i].reserve)));
   (sv.weapon >= 0 && sv.weapon < Oe.length && (Ut = sv.weapon), Xn());
 }
+function rlCover(n, ox, oz) {
+  const x = n.x + ox,
+    z = n.z + oz;
+  return mc(x, z, 0.35) ? 0 : zv({ x, z }, k.pos) ? 0 : 1;
+}
 function rlObs(e, a, c) {
   const n = e.root.position,
     fwd = Qt.getWorldDirection(new D()),
     dx = (n.x - k.pos.x) / (a || 1),
     dz = (n.z - k.pos.z) / (a || 1),
     pv = Math.hypot(k.vel.x, k.vel.z);
+  let allies = 0,
+    nearest = 30;
+  for (const g of Je) {
+    if (g === e || !g.alive || g.screamer) continue;
+    const d = Math.hypot(g.root.position.x - n.x, g.root.position.z - n.z);
+    (d < 6 && allies++, d < nearest && (nearest = d));
+  }
   return [
     rn(a / 24, 0, 1),
     c ? 1 : 0,
     e.hp / e.maxHp,
-    e.ranged ? 1 : 0,
     e.heavy ? 1 : 0,
     e.stagger > 0 ? 1 : 0,
     rn(e.attack / 2, -1, 1),
     e.aim > 0 ? 1 : 0,
     rn(pv / 8, 0, 1),
     fwd.x * dx + fwd.z * dz,
+    fwd.z * dx - fwd.x * dz,
+    k.grounded ? 0 : 1,
+    k.slide > 0 ? 1 : 0,
+    rn(k.health / 100, 0, 1),
+    Ce > 0 ? 1 : 0,
+    rn(On, 0, 1),
+    Ut / 3,
+    rn((sn - k.lastHurt) / 3, 0, 1),
+    rn(allies / 5, 0, 1),
+    rn(nearest / 10, 0, 1),
+    rn(Je.length / 20, 0, 1),
+    rn(en / 10, 0, 1),
+    rlCover(n, -dz * 1.3, dx * 1.3),
+    rlCover(n, dz * 1.3, -dx * 1.3),
+    (e.rlAction ?? 0) / 5,
   ];
 }
-function rlAct(obs) {
-  const p = RL.policy,
-    h = new Array(p.b1.length);
+function rlAct(obs, p) {
+  const h = new Array(p.b1.length);
   for (let j = 0; j < h.length; j++) {
     let s = p.b1[j];
     for (let i = 0; i < obs.length; i++) s += obs[i] * p.W1[i][j];
@@ -26933,10 +26958,14 @@ function rlDealt(e, x) {
   e.rl && rlReward(e, x * 0.1);
 }
 function rlDecide(e, a, c) {
-  const taken = (e.rlHp ?? e.hp) - e.hp;
-  ((e.rlHp = e.hp), rlReward(e, -taken * 0.03 - 0.01));
+  const taken = (e.rlHp ?? e.hp) - e.hp,
+    closed = (e.rlDist ?? a) - a;
+  ((e.rlHp = e.hp), (e.rlDist = a), rlReward(e, -taken * 0.03 - 0.01));
+  e.ranged
+    ? rlReward(e, c && a >= RANGED_HOLD_MIN && a <= RANGED_HOLD_MAX ? 0.02 : a < RANGED_BREAK_OFF ? -0.02 : 0)
+    : rlReward(e, rn(closed, -1, 1) * 0.05);
   const obs = rlObs(e, a, c),
-    act = rlAct(obs);
+    act = rlAct(obs, e.ranged ? RL.policy.ranged : RL.policy.melee);
   (e.traj || (e.traj = []), e.traj.push({ o: obs, a: act, r: 0 }), (e.rlAction = act), RL.decisions++);
 }
 function rlEnd(e, bonus) {
