@@ -5,7 +5,7 @@
 Fork of `alesha-pro/bench-portal @ 2fa5c82` → `games/breach-blacksite-astra`.
 
 Static Three.js horde-survival FPS. No build step: `index.html` + prebuilt bundle in `assets/`.
-Upstream ships only build output, so tuning happens directly in `assets/index-cddef066.js`
+Upstream ships only build output, so tuning happens directly in `assets/index-6e38581d.js`
 (game logic lives in the tail of the file) and in `assets/index-49044fd1.css` / `index.html`
 (both unminified-friendly).
 
@@ -99,6 +99,32 @@ bot is alive; once the last one falls, your death ends the round. Five seconds l
 next round starts with fresh teams. HUD shows `ALPHA n · m BRAVO` and the round number.
 Bot-on-bot kills do not score or drop pickups; only your own kills do. Team mode does
 not touch the survival save.
+A round also ends after 240 s of sim time as a draw, so camping shooters cannot stall it.
+
+## Collision
+
+Bodies are circles sliding against axis-aligned boxes (`Ba`). A box pushes you out through the
+face nearest to where you already are, never through the face your velocity points at, so a
+body that ended up overlapping a box (stepping off a crate edge, crouching next to a barrier,
+a knockback) is nudged out by a few centimetres instead of being thrown across it. A body
+that is inside a box on both axes leaves along the axis of least penetration. Standing room on
+top of a box matches the body radius, so you can sit on a crate edge without being pushed off.
+Bots that make no headway on their chosen direction (a wall or a corner) fall back to the flow
+field direction, then to sliding along the wall either way, so they do not park in corners.
+
+## Self-play (headless training)
+
+    pip3 install playwright
+    python3 server/selfplay.py --games 16
+
+Opens N headless Chrome tabs (Google Chrome via `channel=chrome`, or `playwright install
+chromium`) at `/?auto=tdm`. Auto mode fields 10 bots per side, drops the player, skips
+rendering and the pause-on-blur handlers, and starts the first round once the policy has
+loaded. Every tab posts its transitions to the same backend, so the nets train on bot vs
+bot at roughly 30 transitions/s per tab. The script prints rounds, wins, transition
+count, update counts and mean reward every `--report` seconds; `--minutes` bounds the run,
+0 runs until Ctrl-C. Needs the static server (`--port`, default 4178) and
+`server/rl_server.py` already running.
 
 The same backend keeps your run: wave, score, kills, health, weapon and ammo are posted to
 `POST /save` every 4 s while playing. Reload the page and the menu button reads

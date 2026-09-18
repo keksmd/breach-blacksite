@@ -26141,20 +26141,32 @@ function zv(i, t) {
 function Ba(i, t, e, n = 0.36, r = 0) {
   let s = rn(i.x + t, -34.4, 34.4),
     a = rn(i.z + e, -33.6, 33.6);
-  for (const o of Gr.colliders)
-    o.y1 < r + 0.15 ||
-      o.y0 > r + 1.5 ||
-      (Math.abs(i.z - o.z) < o.d + n &&
-        Math.abs(s - o.x) < o.w + n &&
-        (s = t > 0 ? o.x - o.w - n : t < 0 ? o.x + o.w + n : i.x));
+  for (const o of Gr.colliders) {
+    if (o.y1 < r + 0.15 || o.y0 > r + 1.5) continue;
+    const px = o.w + n - Math.abs(i.x - o.x),
+      pz = o.d + n - Math.abs(i.z - o.z);
+    if (px > 0 && pz > 0) {
+      px <= pz ? (s = i.x < o.x ? o.x - o.w - n : o.x + o.w + n) : (a = i.z < o.z ? o.z - o.d - n : o.z + o.d + n);
+      continue;
+    }
+    pz > 0 && Math.abs(s - o.x) < o.w + n && (s = i.x < o.x ? o.x - o.w - n : o.x + o.w + n);
+  }
   i.x = s;
   for (const o of Gr.colliders)
     o.y1 < r + 0.15 ||
       o.y0 > r + 1.5 ||
-      (Math.abs(i.x - o.x) < o.w + n &&
-        Math.abs(a - o.z) < o.d + n &&
-        (a = e > 0 ? o.z - o.d - n : e < 0 ? o.z + o.d + n : i.z));
+      (Math.abs(i.x - o.x) < o.w + n && Math.abs(a - o.z) < o.d + n && (a = i.z < o.z ? o.z - o.d - n : o.z + o.d + n));
   i.z = a;
+}
+function slideMove(n, dx, dz, rad, fx, fz) {
+  const sx = n.x,
+    sz = n.z,
+    want = Math.hypot(dx, dz);
+  if ((Ba(n, dx, dz, rad), want < 1e-4 || Math.hypot(n.x - sx, n.z - sz) > want * 0.4)) return;
+  const len = want / (Math.hypot(fx, fz) || 1);
+  Ba(n, fx * len, fz * len, rad);
+  Math.hypot(n.x - sx, n.z - sz) > want * 0.4 || Ba(n, -dz, dx, rad);
+  Math.hypot(n.x - sx, n.z - sz) > want * 0.4 || Ba(n, dz, -dx, rad);
 }
 const Gh = [
   [-30, 27],
@@ -26623,10 +26635,10 @@ document.addEventListener("keydown", (i) => {
 });
 document.addEventListener("keyup", (i) => Fe.delete(i.code));
 document.addEventListener("visibilitychange", () => {
-  document.hidden && de === "playing" && (document.exitPointerLock?.(), $a());
+  document.hidden && de === "playing" && !TM.auto && (document.exitPointerLock?.(), $a());
 });
 window.addEventListener("blur", () => {
-  (Fe.clear(), (bi = Ei = !1), de === "playing" && (document.exitPointerLock?.(), $a()));
+  (Fe.clear(), (bi = Ei = !1), de === "playing" && !TM.auto && (document.exitPointerLock?.(), $a()));
 });
 window.addEventListener(
   "wheel",
@@ -26668,8 +26680,8 @@ function Yv(i) {
   let a = 0;
   for (const u of Gr.colliders)
     u.y1 < 3.5 &&
-      Math.abs(k.pos.x - u.x) < u.w + 0.15 &&
-      Math.abs(k.pos.z - u.z) < u.d + 0.15 &&
+      Math.abs(k.pos.x - u.x) < u.w + 0.34 &&
+      Math.abs(k.pos.z - u.z) < u.d + 0.34 &&
       k.pos.y - k.height >= u.y1 - 0.3 &&
       k.vertical <= 0 &&
       (a = Math.max(a, u.y1));
@@ -26864,6 +26876,7 @@ const RL_URL = "http://localhost:8790",
   RL_HIT_BONUS = 1,
   RL_TAKEN_COST = 0.03,
   TM_SIZE = 10,
+  TM_ROUND_MAX = 240,
   TM_SPAWNS = [
     [
       [-30, 27],
@@ -26880,7 +26893,7 @@ const RL_URL = "http://localhost:8790",
     ],
   ],
   TM_NAMES = ["ALPHA", "BRAVO"],
-  TM = { on: !1, round: 0, wins: [0, 0], next: 0, deaths: 0 },
+  TM = { on: !1, auto: !1, round: 0, wins: [0, 0], next: 0, deaths: 0, clock: 0 },
   RL = { ready: !1, version: 0, policy: null, queue: [], sent: 0, decisions: 0, flushTimer: 0, refreshTimer: 0, statsTimer: 0, saveTimer: 0, save: null, resume: !1, episodes: 0 };
 function rlFetch(path, ms) {
   const ctl = new AbortController(),
@@ -26972,9 +26985,9 @@ function tmSpawnPoint(team) {
 }
 function tmRound() {
   for (const g of Je) Se.remove(g.root);
-  ((Je.length = 0), TM.round++, (en = TM.round), (gs = 0), (ms = 0), (Fa = 0), (Mi = 0), (TM.next = 0), (Ho = 0));
+  ((Je.length = 0), TM.round++, (en = TM.round), (gs = 0), (ms = 0), (Fa = 0), (Mi = 0), (TM.next = 0), (TM.clock = 0), (Ho = 0));
   for (let team = 0; team < 2; team++) {
-    const bots = team === 0 ? TM_SIZE - 1 : TM_SIZE;
+    const bots = team === 0 && !TM.auto ? TM_SIZE - 1 : TM_SIZE;
     for (let j = 0; j < bots; j++) {
       const p = tmSpawnPoint(team),
         ranged = j % 5 === 3 || j % 5 === 4,
@@ -26982,10 +26995,11 @@ function tmRound() {
       Lv(p[0], p[1], heavy, ranged, team);
     }
   }
-  (k.pos.set(0, 1.7, 20), k.vel.set(0, 0, 0), (k.health = 100), (k.lastHurt = -10));
+  (k.pos.set(0, 1.7, 20), k.vel.set(0, 0, 0), (k.health = TM.auto ? 0 : 100), (k.lastHurt = -10));
   (_c(`ROUND ${String(TM.round).padStart(2, "0")}`, `${TM_NAMES[0]} ${TM.wins[0]} : ${TM.wins[1]} ${TM_NAMES[1]}`, 3), Ue.wave(), Xn());
 }
 function tmRespawn() {
+  if (TM.auto) return;
   const p = tmSpawnPoint(0);
   (k.pos.set(p[0], 1.7, p[1]), k.vel.set(0, 0, 0), (k.health = 100), (k.lastHurt = -10), TM.deaths++, (kn = 1));
   (_c("KIA", "REDEPLOYED AT ALPHA SPAWN", 2.5), Xn());
@@ -26997,10 +27011,24 @@ function tmUpdate(i) {
   }
   const a = tmAlive(0),
     b = tmAlive(1);
+  if ((TM.clock += i) > TM_ROUND_MAX) {
+    ((TM.next = 5), rlEndAll(0), _c("TIME", `${TM_NAMES[0]} ${a} : ${b} ${TM_NAMES[1]} STILL STANDING`, 4), Xn());
+    return;
+  }
   if (a === 0 || b === 0) {
     const w = b === 0 ? 0 : 1;
     (TM.wins[w]++, (TM.next = 5), rlEndAll(0), _c(`${TM_NAMES[w]} TAKES THE ROUND`, `${TM_NAMES[0]} ${TM.wins[0]} : ${TM.wins[1]} ${TM_NAMES[1]}`, 4), Ue.wave(), Xn());
   }
+}
+function tmAutoBoot() {
+  if (!new URLSearchParams(location.search).has("auto")) return;
+  const t = setInterval(() => {
+    if (!RL.ready) {
+      rlRefresh();
+      return;
+    }
+    (clearInterval(t), (TM.on = TM.auto = !0), (RL.resume = !1), of(), af());
+  }, 1000);
 }
 function rlInit() {
   (rlRefresh(), rlStats());
@@ -27303,7 +27331,7 @@ function Zv(i) {
     }
     const f = e.stagger > 0 ? 0.25 : e.speed;
     if (
-      (a > 1.45 && !m && (Ba(n, (o + h) * f * i, (l + u) * f * i, e.heavy ? 0.45 : 0.35), (e.phase += i * f * 2.7)),
+      (a > 1.45 && !m && (slideMove(n, (o + h) * f * i, (l + u) * f * i, e.heavy ? 0.45 : 0.35, ...Jv(n, o, l, TM.on ? tmFields[e.team] : ii)), (e.phase += i * f * 2.7)),
       e.knockback &&
         (Ba(n, e.knockback.x * i, e.knockback.z * i, e.heavy ? 0.45 : 0.35),
         e.knockback.multiplyScalar(Math.exp(-i * 4.5))),
@@ -27475,7 +27503,7 @@ function cf(i) {
     Gr.update(Tr),
     (pc.uniforms.time.value = Tr),
     de === "playing" && (ci || Yn)
-      ? ((Te.shadowMap.needsUpdate = !0), (sn += t), Yv(t), Zv(t), rlTick(t), TM.on ? tmUpdate(t) : jv(t), qh(t), lowHpPulse(t))
+      ? ((Te.shadowMap.needsUpdate = !0), (sn += t), TM.auto || Yv(t), Zv(t), rlTick(t), TM.on ? tmUpdate(t) : jv(t), qh(t), lowHpPulse(t))
       : de === "menu"
         ? (Qt.position.set(-8 + Math.sin(Tr * 0.045) * 1.4, 5.3, 25),
           Qt.lookAt(3, 4, -10),
@@ -27483,7 +27511,10 @@ function cf(i) {
           Qt.updateProjectionMatrix(),
           qh(t))
         : de === "dead" && ((kn = Tn(kn, 0, 3, t)), (Et("damage").style.opacity = kn * 0.6)),
-    Cv(Se, Je, li),
+    TM.auto || tmRender(t));
+}
+function tmRender(t) {
+  (Cv(Se, Je, li),
     (Te.autoClear = !0),
     oi.enabled &&
       (oi.ssaoMaterial.uniforms.cameraProjectionMatrix.value.copy(Qt.projectionMatrix),
@@ -27505,6 +27536,7 @@ window.__BREACH__ = {
       wave: en,
       hostiles: Je.length,
       rl: { ready: RL.ready, version: RL.version, bots: Je.filter((i) => i.rl).length, decisions: RL.decisions, queued: RL.queue.length, sent: RL.sent },
+      team: { on: TM.on, auto: TM.auto, round: TM.round, wins: TM.wins.slice(), alive: [tmAlive(0), tmAlive(1)], clock: TM.clock },
       pending: gs,
       kills: Ja,
       score: hi,
@@ -27550,3 +27582,4 @@ window.__BREACH__ = {
 yc();
 requestAnimationFrame(cf);
 Et("loading").classList.add("hidden");
+tmAutoBoot();
