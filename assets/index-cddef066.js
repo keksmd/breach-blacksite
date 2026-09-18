@@ -25806,7 +25806,7 @@ const Je = [],
   yi = [],
   li = [],
   _s = [];
-function Lv(i, t, e = !1, n = !1) {
+function Lv(i, t, e = !1, n = !1, team = 1) {
   const r = Av(e, n);
   (r.root.position.set(i, 0, t), Se.add(r.root));
   const s = {
@@ -25822,9 +25822,10 @@ function Lv(i, t, e = !1, n = !1) {
     spawn: 0.5,
     alive: !0,
     rl: RL.ready,
+    team,
   };
-  if (s.rl) {
-    const mk = new ee(new fc(0.26, 0.26, 0.26, 1, 0.04), new tn({ color: 3800968 }));
+  if (s.rl || TM.on) {
+    const mk = new ee(new fc(0.26, 0.26, 0.26, 1, 0.04), new tn({ color: team === 0 ? 5197823 : 3800968 }));
     (mk.position.set(0, e ? 2.25 : 2.1, 0), r.root.add(mk));
   }
   return (Je.push(s), xs(new D(i, 0.2, t), 12, 16761973, 1.5), s);
@@ -26085,7 +26086,8 @@ const ge = 51,
   Yr = 35.7,
   Oa = new Uint8Array(ge * ge),
   ii = new Int16Array(ge * ge),
-  ko = new Int16Array(ge * ge);
+  ko = new Int16Array(ge * ge),
+  tmFields = [new Int16Array(ge * ge), new Int16Array(ge * ge)];
 let Ho = 0,
   Hl = -1;
 function mc(i, t, e = 0.36) {
@@ -26101,10 +26103,14 @@ function gc(i, t) {
 function ef() {
   const i = gc(k.pos.x, k.pos.z);
   if (i === Hl) return;
-  ((Hl = i), ii.fill(32767), (ii[i] = 0));
+  ((Hl = i), tmFill(ii, [i]));
+}
+function tmFill(ii, seeds) {
+  ii.fill(32767);
   let t = 0,
-    e = 1;
-  for (ko[0] = i; t < e;) {
+    e = 0;
+  for (const i of seeds) ii[i] === 32767 && ((ii[i] = 0), (ko[e++] = i));
+  for (; t < e;) {
     const n = ko[t++],
       r = n % ge,
       s = Math.floor(n / ge);
@@ -26250,7 +26256,7 @@ function Vv() {
       u = null,
       m = !1;
     for (const g of Je) {
-      if (!g.alive || g.spawn > 0) continue;
+      if (!g.alive || g.spawn > 0 || g.team === 0) continue;
       let _ = g.heavy ? 1.1 : 1;
       for (const d of [
         { y: 1.73, r: 0.255, head: !0 },
@@ -26302,7 +26308,7 @@ function Vv() {
   if (Ut === 1 && e.size)
     for (const [o, l] of e)
       for (const c of Je) {
-        if (!c.alive || c.spawn > 0 || e.has(c)) continue;
+        if (!c.alive || c.spawn > 0 || c.team === 0 || e.has(c)) continue;
         const h = c.root.position.distanceTo(l.point);
         if (h > SHOTGUN_SPLASH_RADIUS) continue;
         const u = Math.min(l.damage, SHOTGUN_SPLASH_CAP) * SHOTGUN_SPLASH_SHARE * (1 - h / SHOTGUN_SPLASH_RADIUS);
@@ -26320,17 +26326,18 @@ function Vv() {
   const a = new D(0.28, -0.1, -0.3).applyQuaternion(Qt.quaternion).add(Qt.position);
   (xs(a, 1, 13347683, 1, 0.65, 0.045, new D(2, 1, 0).applyQuaternion(Qt.quaternion)), Xn());
 }
-function Gv(i, t, e) {
+function Gv(i, t, e, credit = !0) {
   if (i.screamer) {
     detonateScreamer(i, !0);
     return;
   }
-  ((i.alive = !1), Ja++, Fa++, (yr = sn - zl < 2.2 ? yr + 1 : 1), (zl = sn));
-  const r = (t ? 150 : 100) * (i.heavy ? 2 : 1) + Math.max(0, yr - 1) * 25;
+  i.alive = !1;
+  credit && (Ja++, Fa++, (yr = sn - zl < 2.2 ? yr + 1 : 1), (zl = sn));
+  const r = credit ? (t ? 150 : 100) * (i.heavy ? 2 : 1) + Math.max(0, yr - 1) * 25 : 0;
   hi += r;
   const s = document.createElement("div");
   for (
-    s.textContent = `${t ? "HEADSHOT" : "HOSTILE DOWN"}  +${r}${yr > 1 ? "  /  " + yr + "× CHAIN" : ""}`,
+    s.textContent = credit ? `${t ? "HEADSHOT" : "HOSTILE DOWN"}  +${r}${yr > 1 ? "  /  " + yr + "× CHAIN" : ""}` : `${TM_NAMES[i.team]} DOWN`,
       Et("killfeed").prepend(s);
     Et("killfeed").children.length > 5;
   )
@@ -26354,7 +26361,8 @@ function Gv(i, t, e) {
       tumbleX: 0,
       tumbleZ: 0,
     }),
-    (Math.random() < 0.32 || (k.health < 40 && Math.random() < 0.5)) &&
+    credit &&
+      (Math.random() < 0.32 || (k.health < 40 && Math.random() < 0.5)) &&
       Wv(i.root.position, k.health < 65 && Math.random() < 0.55 ? "health" : "ammo"),
     Xn());
 }
@@ -26382,7 +26390,7 @@ function Xh(i) {
     (In += 0.02),
     Ue.hurt(i),
     Xn(),
-    k.health <= 0 && Xv());
+    k.health <= 0 && (TM.on ? tmAlive(0) > 0 && tmRespawn() : Xv()));
 }
 function vc() {
   if (hi > Pr) {
@@ -26393,7 +26401,7 @@ function vc() {
   }
 }
 function Xv() {
-  (rlEndAll(5),
+  (rlEndAll(0),
     RL.ready && rlSave(null),
     (retryWave = Math.max(1, en)),
     vc(),
@@ -26412,8 +26420,14 @@ function Xn() {
     (Et("health-bar").style.width = k.health + "%"),
     (Et("health-bar").style.background = k.health < 30 ? "#ff6c48" : "#e3ef85"),
     (Et("wave").textContent = String(en).padStart(2, "0")),
-    (Et("hostiles").textContent =
-      Mi > 0 ? "NEXT WAVE IN " + Math.ceil(Mi) + "s" : `${Math.max(0, ms - Fa)} HOSTILES REMAINING`),
+    (Et("wave-label").textContent = TM.on ? "ROUND" : "HOSTILE WAVE"),
+    (Et("hostiles").textContent = TM.on
+      ? TM.next > 0
+        ? "NEXT ROUND IN " + Math.ceil(TM.next) + "s"
+        : `${TM_NAMES[0]} ${tmAlive(0)} · ${tmAlive(1)} ${TM_NAMES[1]}`
+      : Mi > 0
+        ? "NEXT WAVE IN " + Math.ceil(Mi) + "s"
+        : `${Math.max(0, ms - Fa)} HOSTILES REMAINING`),
     (Et("score").textContent = String(hi).padStart(5, "0")),
     (Et("best").textContent = "BEST " + String(Math.max(Pr, hi)).padStart(5, "0")),
     (Et("ammo").textContent = String(Rn[Ut]).padStart(2, "0")),
@@ -26421,7 +26435,7 @@ function Xn() {
     (Et("reserve").textContent = Cn[Ut]),
     (Et("weapon-name").textContent = Oe[Ut].name),
     (Et("fire-mode").textContent = Oe[Ut].type),
-    (Et("wave-progress").firstElementChild.style.width = (ms ? (Fa / ms) * 100 : 0) + "%"),
+    (Et("wave-progress").firstElementChild.style.width = (TM.on ? (tmAlive(0) / TM_SIZE) * 100 : ms ? (Fa / ms) * 100 : 0) + "%"),
     (Et("lowhp").style.opacity = k.health > 0 ? rn((46 - k.health) / 46, 0, 1) * 0.82 : 0),
     Et("lowhp").classList.toggle("crit", k.health > 0 && k.health <= 24));
 }
@@ -26463,7 +26477,7 @@ function qv() {
     (Et("killfeed").innerHTML = ""),
     (Hl = -1),
     ef(),
-    nf());
+    TM.on ? ((TM.round = 0), (TM.wins = [0, 0]), (TM.deaths = 0), tmRound()) : nf());
 }
 function af() {
   ((Yn = !0),
@@ -26480,7 +26494,7 @@ async function xc() {
   }
 }
 function of() {
-  (RL.resume && RL.save && RL.save.wave > 1 ? (retryWave = RL.save.wave) : RL.ready && rlSave(null),
+  (RL.resume && RL.save && RL.save.wave > 1 ? (retryWave = RL.save.wave) : RL.ready && !TM.on && rlSave(null),
     Ue.init(),
     qv(),
     RL.resume && rlRestore(),
@@ -26505,7 +26519,10 @@ function $a() {
     Et("pause").classList.remove("hidden"));
 }
 Et("deploy").onclick = () => {
-  ((retryWave = 1), (RL.resume = !0), of());
+  ((TM.on = !1), (retryWave = 1), (RL.resume = !0), of());
+};
+Et("deploy-team").onclick = () => {
+  ((TM.on = !0), (retryWave = 1), (RL.resume = !1), of());
 };
 Et("restart").onclick = of;
 Et("resume").onclick = () => {
@@ -26844,6 +26861,26 @@ const RL_URL = "http://localhost:8790",
   RL_SAVE_EVERY = 4,
   RL_OBS = 36,
   RL_LEAD = [0, 0.15, 0.3, 0.45, 0.6, 0.75, 0.9],
+  RL_HIT_BONUS = 1,
+  RL_TAKEN_COST = 0.03,
+  TM_SIZE = 10,
+  TM_SPAWNS = [
+    [
+      [-30, 27],
+      [30, 28],
+      [-16, 30],
+      [20, 29],
+    ],
+    [
+      [-9, -29],
+      [28, -23],
+      [-30, -16],
+      [3, -23],
+      [20, -14],
+    ],
+  ],
+  TM_NAMES = ["ALPHA", "BRAVO"],
+  TM = { on: !1, round: 0, wins: [0, 0], next: 0, deaths: 0 },
   RL = { ready: !1, version: 0, policy: null, queue: [], sent: 0, decisions: 0, flushTimer: 0, refreshTimer: 0, statsTimer: 0, saveTimer: 0, save: null, resume: !1, episodes: 0 };
 function rlFetch(path, ms) {
   const ctl = new AbortController(),
@@ -26863,6 +26900,107 @@ function rlStats() {
   rlFetch("/stats", 1200)
     .then((st) => ((RL.episodes = st.transitions), rlStatus()))
     .catch(() => {});
+}
+function tmPlayerTarget() {
+  return {
+    pos: k.pos,
+    vel: k.vel,
+    fwd: Qt.getWorldDirection(new D()),
+    hp: k.health / 100,
+    air: k.grounded ? 0 : 1,
+    slide: k.slide > 0 ? 1 : 0,
+    reload: Ce > 0 ? 1 : 0,
+    ads: rn(On, 0, 1),
+    weapon: Ut / 3,
+    lastHurt: k.lastHurt,
+    ent: null,
+  };
+}
+function tmBotTarget(g) {
+  const yaw = g.root.rotation.y;
+  return {
+    pos: g.root.position.clone().setY(g.root.position.y + 1.7),
+    vel: g.vel ?? new D(),
+    fwd: new D(Math.sin(yaw), 0, Math.cos(yaw)),
+    hp: g.hp / g.maxHp,
+    air: 0,
+    slide: 0,
+    reload: g.aim > 0 ? 1 : 0,
+    ads: 0,
+    weapon: g.ranged ? (g.root.userData.enemyKind === "ranged-dmr" ? 2 / 3 : 1 / 3) : 0,
+    lastHurt: g.lastHurt ?? -10,
+    ent: g,
+  };
+}
+function tmTarget(e) {
+  const n = e.root.position;
+  let best = null,
+    bd = 1e9;
+  if (e.team === 1 && k.health > 0) ((best = tmPlayerTarget()), (bd = Math.hypot(k.pos.x - n.x, k.pos.z - n.z)));
+  if (!TM.on) return best;
+  for (const g of Je) {
+    if (g === e || !g.alive || g.spawn > 0 || g.screamer || g.team === e.team) continue;
+    const d = Math.hypot(g.root.position.x - n.x, g.root.position.z - n.z);
+    d < bd && ((bd = d), (best = tmBotTarget(g)));
+  }
+  return best;
+}
+function tmHurt(T, dmg, from) {
+  if (!T.ent) {
+    Xh(dmg);
+    return;
+  }
+  const g = T.ent;
+  ((g.hp -= dmg), (g.stagger = Math.max(g.stagger, 0.22)), (g.lastHurt = sn));
+  const dir = g.root.position.clone().sub(from.root.position).setY(0).normalize();
+  (Rr.burst(T.pos.clone().setY(1.1), dir.clone().negate(), g.heavy ? "armor" : "body", 0.8), g.hp <= 0 && Gv(g, !1, dir, !1));
+}
+function tmAlive(team) {
+  let n = 0;
+  for (const g of Je) g.alive && !g.screamer && g.team === team && n++;
+  return team === 0 && k.health > 0 ? n + 1 : n;
+}
+function tmSpawnPoint(team) {
+  const pts = TM_SPAWNS[team];
+  for (let t = 0; t < 40; t++) {
+    const b = pts[Math.floor(Math.random() * pts.length)],
+      x = b[0] + Pe(-2.5, 2.5),
+      z = b[1] + Pe(-2.5, 2.5);
+    if (!mc(x, z) && ii[gc(x, z)] !== 32767) return [x, z];
+  }
+  return pts[0];
+}
+function tmRound() {
+  for (const g of Je) Se.remove(g.root);
+  ((Je.length = 0), TM.round++, (en = TM.round), (gs = 0), (ms = 0), (Fa = 0), (Mi = 0), (TM.next = 0), (Ho = 0));
+  for (let team = 0; team < 2; team++) {
+    const bots = team === 0 ? TM_SIZE - 1 : TM_SIZE;
+    for (let j = 0; j < bots; j++) {
+      const p = tmSpawnPoint(team),
+        ranged = j % 5 === 3 || j % 5 === 4,
+        heavy = !ranged && j % 5 === 2;
+      Lv(p[0], p[1], heavy, ranged, team);
+    }
+  }
+  (k.pos.set(0, 1.7, 20), k.vel.set(0, 0, 0), (k.health = 100), (k.lastHurt = -10));
+  (_c(`ROUND ${String(TM.round).padStart(2, "0")}`, `${TM_NAMES[0]} ${TM.wins[0]} : ${TM.wins[1]} ${TM_NAMES[1]}`, 3), Ue.wave(), Xn());
+}
+function tmRespawn() {
+  const p = tmSpawnPoint(0);
+  (k.pos.set(p[0], 1.7, p[1]), k.vel.set(0, 0, 0), (k.health = 100), (k.lastHurt = -10), TM.deaths++, (kn = 1));
+  (_c("KIA", "REDEPLOYED AT ALPHA SPAWN", 2.5), Xn());
+}
+function tmUpdate(i) {
+  if (TM.next > 0) {
+    ((TM.next -= i), TM.next <= 0 && tmRound());
+    return;
+  }
+  const a = tmAlive(0),
+    b = tmAlive(1);
+  if (a === 0 || b === 0) {
+    const w = b === 0 ? 0 : 1;
+    (TM.wins[w]++, (TM.next = 5), rlEndAll(0), _c(`${TM_NAMES[w]} TAKES THE ROUND`, `${TM_NAMES[0]} ${TM.wins[0]} : ${TM.wins[1]} ${TM_NAMES[1]}`, 4), Ue.wave(), Xn());
+  }
 }
 function rlInit() {
   (rlRefresh(), rlStats());
@@ -26896,10 +27034,10 @@ function rlRestore() {
   Array.isArray(sv.reserve) && sv.reserve.length === Cn.length && (Cn = sv.reserve.map((v, i) => rn(v | 0, 0, Oe[i].reserve)));
   (sv.weapon >= 0 && sv.weapon < Oe.length && (Ut = sv.weapon), Xn());
 }
-function rlCover(n, ox, oz) {
+function rlCover(n, ox, oz, T) {
   const x = n.x + ox,
     z = n.z + oz;
-  return mc(x, z, 0.35) ? 0 : zv({ x, z }, k.pos) ? 0 : 1;
+  return mc(x, z, 0.35) ? 0 : zv({ x, z }, T.pos) ? 0 : 1;
 }
 function rlProbe(n, ux, uz) {
   for (let d = 0.5; d <= 3; d += 0.5) if (mc(n.x + ux * d, n.z + uz * d, 0.35)) return (d - 0.5) / 3;
@@ -26911,20 +27049,26 @@ function rlDir(bo, bl, k8) {
     si = Math.sin(th);
   return [bo * cs - bl * si, bo * si + bl * cs];
 }
-function rlObs(e, a, c, bo, bl) {
+function rlObs(e, a, c, bo, bl, T) {
   const n = e.root.position,
-    fwd = Qt.getWorldDirection(new D()),
-    dx = (n.x - k.pos.x) / (a || 1),
-    dz = (n.z - k.pos.z) / (a || 1),
-    pv = Math.hypot(k.vel.x, k.vel.z),
-    flow = Jv(n, bo, bl);
+    fwd = T.fwd,
+    dx = (n.x - T.pos.x) / (a || 1),
+    dz = (n.z - T.pos.z) / (a || 1),
+    pv = Math.hypot(T.vel.x, T.vel.z),
+    flow = Jv(n, bo, bl, TM.on ? tmFields[e.team] : ii);
   let allies = 0,
-    nearest = 30;
+    nearest = 30,
+    foes = 0;
   for (const g of Je) {
     if (g === e || !g.alive || g.screamer) continue;
+    if (g.team !== e.team) {
+      foes++;
+      continue;
+    }
     const d = Math.hypot(g.root.position.x - n.x, g.root.position.z - n.z);
     (d < 6 && allies++, d < nearest && (nearest = d));
   }
+  e.team === 1 && k.health > 0 && foes++;
   const obs = [
     rn(a / 24, 0, 1),
     c ? 1 : 0,
@@ -26936,22 +27080,22 @@ function rlObs(e, a, c, bo, bl) {
     rn(pv / 8, 0, 1),
     fwd.x * dx + fwd.z * dz,
     fwd.z * dx - fwd.x * dz,
-    k.grounded ? 0 : 1,
-    k.slide > 0 ? 1 : 0,
-    rn(k.health / 100, 0, 1),
-    Ce > 0 ? 1 : 0,
-    rn(On, 0, 1),
-    Ut / 3,
-    rn((sn - k.lastHurt) / 3, 0, 1),
+    T.air,
+    T.slide,
+    rn(T.hp, 0, 1),
+    T.reload,
+    T.ads,
+    T.weapon,
+    rn((sn - T.lastHurt) / 3, 0, 1),
     rn(allies / 5, 0, 1),
     rn(nearest / 10, 0, 1),
-    rn(Je.length / 20, 0, 1),
+    rn(foes / 20, 0, 1),
     rn(en / 10, 0, 1),
-    rlCover(n, -dz * 1.3, dx * 1.3),
-    rlCover(n, dz * 1.3, -dx * 1.3),
+    rlCover(n, -dz * 1.3, dx * 1.3, T),
+    rlCover(n, dz * 1.3, -dx * 1.3, T),
     (e.rlMove ?? 0) / 8,
-    rn((k.vel.x * bo + k.vel.z * bl) / 8, -1, 1),
-    rn((k.vel.z * bo - k.vel.x * bl) / 8, -1, 1),
+    rn((T.vel.x * bo + T.vel.z * bl) / 8, -1, 1),
+    rn((T.vel.z * bo - T.vel.x * bl) / 8, -1, 1),
     flow[0] * bo + flow[1] * bl,
     flow[1] * bo - flow[0] * bl,
   ];
@@ -26989,19 +27133,15 @@ function rlReward(e, x) {
   e.rlStep && (e.rlStep.r += x);
 }
 function rlDealt(e, x) {
-  e.rl && rlReward(e, x * 0.1);
+  e.rl && rlReward(e, x * 0.1 + RL_HIT_BONUS);
 }
 function rlPush(e, obs) {
   e.rlStep && ((e.rlStep.o2 = obs), RL.queue.push(e.rlStep), (e.rlStep = null));
 }
-function rlDecide(e, a, c, bo, bl) {
-  const taken = (e.rlHp ?? e.hp) - e.hp,
-    closed = (e.rlDist ?? a) - a;
-  ((e.rlHp = e.hp), (e.rlDist = a), rlReward(e, -taken * 0.03 - 0.01));
-  e.ranged
-    ? rlReward(e, c && a >= RANGED_HOLD_MIN && a <= RANGED_HOLD_MAX ? 0.02 : a < RANGED_BREAK_OFF ? -0.02 : 0)
-    : rlReward(e, rn(closed, -1, 1) * 0.05);
-  const obs = rlObs(e, a, c, bo, bl);
+function rlDecide(e, a, c, bo, bl, T) {
+  const taken = (e.rlHp ?? e.hp) - e.hp;
+  ((e.rlHp = e.hp), rlReward(e, -taken * RL_TAKEN_COST));
+  const obs = rlObs(e, a, c, bo, bl, T);
   rlPush(e, obs);
   const act = rlAct(obs, e.ranged ? RL.policy.ranged : RL.policy.melee);
   ((e.rlStep = { o: obs, m: act.m, f: act.f, a: act.a, r: 0, ranged: !!e.ranged, o2: null }), (e.rlMove = act.m), (e.rlFire = act.f), (e.rlAim = act.a), RL.decisions++);
@@ -27025,15 +27165,15 @@ function rlFlush() {
     .then((r) => (r.ok ? (RL.sent += batch.length) : RL.queue.unshift(...batch)))
     .catch(() => RL.queue.unshift(...batch));
 }
-function rlMelee(e, a) {
+function rlMelee(e, a, T) {
   if (e.ranged || e.rlFire !== 1 || e.attack > 0) return;
   e.rlFire = 0;
-  if (a < 1.9 && Math.abs(k.pos.y - 1.7) < 1.5) {
+  if (a < 1.9 && Math.abs(T.pos.y - 1.7) < 1.5) {
     const dmg = e.heavy ? MELEE_HEAVY_DAMAGE : MELEE_DAMAGE;
-    (rlDealt(e, dmg), Xh(dmg), (e.attack = e.heavy ? 1.1 : 0.8), (e.melee = MELEE_SWING_TIME), Ue.knife());
-  } else ((e.attack = 0.5), (e.melee = MELEE_SWING_TIME), rlReward(e, -0.05));
+    (rlDealt(e, dmg), tmHurt(T, dmg, e), (e.attack = e.heavy ? 1.1 : 0.8), (e.melee = MELEE_SWING_TIME), T.ent || Ue.knife());
+  } else ((e.attack = 0.5), (e.melee = MELEE_SWING_TIME));
 }
-function rlRanged(e, i, a, c) {
+function rlRanged(e, i, a, c, T) {
   if (!e.ranged) return;
   const n = e.root.position;
   if (e.aim > 0) {
@@ -27042,18 +27182,18 @@ function rlRanged(e, i, a, c) {
       w = e.aimAnchor.clone().addScaledVector(e.aimVel, RL_LEAD[e.rlAim ?? 0]).add(new D(Pe(-0.15, 0.15), Pe(-0.12, 0.12), Pe(-0.15, 0.15))),
       dmr = e.root.userData.enemyKind === "ranged-dmr",
       dmg = dmr ? RANGED_DMR_DAMAGE : RANGED_DAMAGE,
-      hit = c && a < 30 && Math.hypot(w.x - k.pos.x, w.z - k.pos.z) < 0.8 && Math.abs(w.y - k.pos.y) < 1.2;
+      hit = c && a < 30 && Math.hypot(w.x - T.pos.x, w.z - T.pos.z) < 0.8 && Math.abs(w.y - T.pos.y) < 1.2;
     (tf(g, w, !0),
       xs(g, 9, 16768443, 1.7, 0.12, 0.13),
       xs(g, 5, 7566195, 0.9, 0.5, 0.16, new D(Pe(-0.4, 0.4), Pe(0.3, 1), Pe(-0.4, 0.4))),
       Ue.enemyShot(dmr ? 1 : 0, a),
-      hit ? (rlDealt(e, dmg), Xh(dmg)) : rlReward(e, -0.05),
+      hit && (rlDealt(e, dmg), tmHurt(T, dmg, e)),
       (e.attack = Pe(RANGED_COOLDOWN_MIN, RANGED_COOLDOWN_MAX)));
   } else if (e.rlFire === 1 && e.attack <= 0) {
     ((e.rlFire = 0),
       (e.aim = RANGED_AIM_WINDUP * (e.heavy ? 1.2 : 1)),
-      e.aimAnchor.copy(k.pos),
-      (e.aimVel = new D(k.vel.x, 0, k.vel.z)),
+      e.aimAnchor.copy(T.pos),
+      (e.aimVel = new D(T.vel.x, 0, T.vel.z)),
       xs(n.clone().add(new D(0.2, 1.3, 0.3)), 2, 16733525, 0.6, 0.05, 0.05));
   }
 }
@@ -27062,13 +27202,19 @@ function rlTick(i) {
   RL.flushTimer <= 0 && ((RL.flushTimer = RL_FLUSH_EVERY), rlFlush());
   RL.refreshTimer <= 0 && ((RL.refreshTimer = RL_REFRESH_EVERY), rlRefresh());
   RL.statsTimer <= 0 && ((RL.statsTimer = RL_STATS_EVERY), rlStats(), RL.save || rlInit());
-  RL.saveTimer <= 0 && RL.ready && de === "playing" && ((RL.saveTimer = RL_SAVE_EVERY), rlSave(rlSnapshot()));
+  RL.saveTimer <= 0 && RL.ready && de === "playing" && !TM.on && ((RL.saveTimer = RL_SAVE_EVERY), rlSave(rlSnapshot()));
 }
-function Jv(n, o, l) {
+function tmFieldsUpdate() {
+  const seeds = [[], []];
+  for (const g of Je) g.alive && !g.screamer && seeds[1 - g.team].push(gc(g.root.position.x, g.root.position.z));
+  k.health > 0 && seeds[1].push(gc(k.pos.x, k.pos.z));
+  (tmFill(tmFields[0], seeds[0]), tmFill(tmFields[1], seeds[1]));
+}
+function Jv(n, o, l, f = ii) {
   const g = gc(n.x, n.z),
     _ = g % ge,
     d = Math.floor(g / ge);
-  let p = ii[g],
+  let p = f[g],
     w = _,
     E = d;
   for (let A = -1; A <= 1; A++)
@@ -27077,7 +27223,7 @@ function Jv(n, o, l) {
         M = d + A;
       if (x < 0 || x >= ge || M < 0 || M >= ge) continue;
       const P = M * ge + x;
-      (C && A && (Oa[d * ge + x] || Oa[M * ge + _])) || (ii[P] < p && ((p = ii[P]), (w = x), (E = M)));
+      (C && A && (Oa[d * ge + x] || Oa[M * ge + _])) || (f[P] < p && ((p = f[P]), (w = x), (E = M)));
     }
   const S = w * qr - Yr - n.x,
     v = E * qr - Yr - n.z,
@@ -27086,11 +27232,11 @@ function Jv(n, o, l) {
 }
 rlInit();
 function Zv(i) {
-  ((Ho -= i), Ho <= 0 && (ef(), (Ho = 0.35)));
+  ((Ho -= i), Ho <= 0 && (ef(), TM.on && tmFieldsUpdate(), (Ho = 0.35)));
   for (let t = Je.length - 1; t >= 0; t--) {
     const e = Je[t];
     if (!e.alive) {
-      (rlEnd(e, -2), Je.splice(t, 1));
+      (rlEnd(e, 0), Je.splice(t, 1));
       continue;
     }
     if (e.spawn > 0) {
@@ -27102,13 +27248,19 @@ function Zv(i) {
       updateScreamer(e, i);
       continue;
     }
-    const n = e.root.position,
-      r = k.pos.x - n.x,
-      s = k.pos.z - n.z,
+    const n = e.root.position;
+    ((e.vel ??= new D()), (e.lastPos ??= n.clone()), e.vel.set((n.x - e.lastPos.x) / i, 0, (n.z - e.lastPos.z) / i), e.lastPos.copy(n));
+    const T = tmTarget(e);
+    if (!T) {
+      (Rv(e, i, !1, !1, !1), (e.aim = 0));
+      continue;
+    }
+    const r = T.pos.x - n.x,
+      s = T.pos.z - n.z,
       a = Math.hypot(r, s);
     let o = r / (a || 1),
       l = s / (a || 1);
-    const c = zv(n, k.pos);
+    const c = zv(n, T.pos);
     ((e.flank ??= Math.random() < 0.5 ? -1 : 1),
       (e.flankTimer ??= Pe(1.2, 3.2)),
       (e.aim ??= 0),
@@ -27116,7 +27268,7 @@ function Zv(i) {
       (e.flankTimer -= i),
       e.flankTimer <= 0 && ((e.flank = -e.flank), (e.flankTimer = Pe(1.6, 3.6))));
     if (!c) {
-      const fl = Jv(n, o, l);
+      const fl = Jv(n, o, l, TM.on ? tmFields[e.team] : ii);
       ((o = fl[0]), (l = fl[1]));
     }
     let h = 0,
@@ -27141,7 +27293,7 @@ function Zv(i) {
     let m = e.ranged && c && ((a < RANGED_HOLD_MAX && a > RANGED_HOLD_MIN) || e.aim > 0);
     e.ranged && c && a < RANGED_BREAK_OFF && ((m = !1), (o = -o), (l = -l));
     if (e.rl && RL.ready) {
-      ((e.rlTimer = (e.rlTimer ?? 0) - i), e.rlTimer <= 0 && ((e.rlTimer = RL_TICK), rlDecide(e, a, c, bo, bl)));
+      ((e.rlTimer = (e.rlTimer ?? 0) - i), e.rlTimer <= 0 && ((e.rlTimer = RL_TICK), rlDecide(e, a, c, bo, bl, T)));
       const mv = e.rlMove ?? 0;
       if (mv === 0) m = !0;
       else {
@@ -27156,30 +27308,30 @@ function Zv(i) {
         (Ba(n, e.knockback.x * i, e.knockback.z * i, e.heavy ? 0.45 : 0.35),
         e.knockback.multiplyScalar(Math.exp(-i * 4.5))),
       (e.root.rotation.y = Math.atan2(r, s)),
-      (e.lookYaw = rn(Math.atan2(Math.sin(Math.atan2(k.pos.x - n.x, k.pos.z - n.z) - e.root.rotation.y), Math.cos(Math.atan2(k.pos.x - n.x, k.pos.z - n.z) - e.root.rotation.y)), -0.7, 0.7)),
+      (e.lookYaw = 0),
       Rv(e, i, a > 1.45 && !m, e.attack > 0.65 && a < 1.9, !e.heavy && !e.ranged && a > 7 && e.speed > 3.2 && e.stagger <= 0),
       e.rl && RL.ready
-        ? rlMelee(e, a)
+        ? rlMelee(e, a, T)
         : a < 1.9 &&
-          Math.abs(k.pos.y - 1.7) < 1.5 &&
+          Math.abs(T.pos.y - 1.7) < 1.5 &&
           e.attack <= 0 &&
-          (Xh(e.heavy ? MELEE_HEAVY_DAMAGE : MELEE_DAMAGE),
+          (tmHurt(T, e.heavy ? MELEE_HEAVY_DAMAGE : MELEE_DAMAGE, e),
             (e.attack = e.heavy ? 1.1 : 0.8),
             (e.melee = MELEE_SWING_TIME),
             Ue.knife()),
       !(e.rl && RL.ready) && e.ranged && c && a < 24 && a > 3)
     ) {
       if (e.aim > 0) {
-        if (((e.aim -= i), e.aimAnchor.lerp(k.pos, Math.min(1, i * 2.1)), e.aim <= 0)) {
+        if (((e.aim -= i), e.aimAnchor.lerp(T.pos, Math.min(1, i * 2.1)), e.aim <= 0)) {
           const g = n.clone().add(new D(0.2, 1.3, 0.3)),
-            _ = Math.hypot(k.vel.x, k.vel.z),
+            _ = Math.hypot(T.vel.x, T.vel.z),
             d =
               RANGED_BASE_ACCURACY *
               rn(1 - (a - 6) / 26, 0.35, 1) *
               (_ > 6 ? 0.45 : _ > 2 ? 0.72 : 1) *
-              (k.slide > 0 ? 0.55 : 1),
+              (T.slide ? 0.55 : 1),
             p = Math.random() < d,
-            w = e.aimAnchor.clone().lerp(k.pos, 0.5);
+            w = e.aimAnchor.clone().lerp(T.pos, 0.5);
           (p
             ? w.add(new D(Pe(-0.22, 0.22), Pe(-0.18, 0.18), Pe(-0.22, 0.22)))
             : w.add(
@@ -27193,15 +27345,15 @@ function Zv(i) {
             xs(g, 9, 16768443, 1.7, 0.12, 0.13),
             xs(g, 5, 7566195, 0.9, 0.5, 0.16, new D(Pe(-0.4, 0.4), Pe(0.3, 1), Pe(-0.4, 0.4))),
             Ue.enemyShot(e.root.userData.enemyKind === "ranged-dmr" ? 1 : 0, a),
-            p && Xh(e.root.userData.enemyKind === "ranged-dmr" ? RANGED_DMR_DAMAGE : RANGED_DAMAGE),
+            p && tmHurt(T, e.root.userData.enemyKind === "ranged-dmr" ? RANGED_DMR_DAMAGE : RANGED_DAMAGE, e),
             (e.attack = Pe(RANGED_COOLDOWN_MIN, RANGED_COOLDOWN_MAX)));
         }
       } else
         e.attack <= 0 &&
           ((e.aim = RANGED_AIM_WINDUP * (e.heavy ? 1.2 : 1) * Pe(0.85, 1.2)),
-          e.aimAnchor.copy(k.pos),
+          e.aimAnchor.copy(T.pos),
           xs(n.clone().add(new D(0.2, 1.3, 0.3)), 2, 16733525, 0.6, 0.05, 0.05));
-    } else e.rl && RL.ready ? rlRanged(e, i, a, c) : (e.aim = 0);
+    } else e.rl && RL.ready ? rlRanged(e, i, a, c, T) : (e.aim = 0);
   }
 }
 function qh(i) {
@@ -27323,7 +27475,7 @@ function cf(i) {
     Gr.update(Tr),
     (pc.uniforms.time.value = Tr),
     de === "playing" && (ci || Yn)
-      ? ((Te.shadowMap.needsUpdate = !0), (sn += t), Yv(t), Zv(t), rlTick(t), jv(t), qh(t), lowHpPulse(t))
+      ? ((Te.shadowMap.needsUpdate = !0), (sn += t), Yv(t), Zv(t), rlTick(t), TM.on ? tmUpdate(t) : jv(t), qh(t), lowHpPulse(t))
       : de === "menu"
         ? (Qt.position.set(-8 + Math.sin(Tr * 0.045) * 1.4, 5.3, 25),
           Qt.lookAt(3, 4, -10),

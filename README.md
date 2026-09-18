@@ -5,8 +5,8 @@
 Fork of `alesha-pro/bench-portal @ 2fa5c82` → `games/breach-blacksite-astra`.
 
 Static Three.js horde-survival FPS. No build step: `index.html` + prebuilt bundle in `assets/`.
-Upstream ships only build output, so tuning happens directly in `assets/index-22eb533a.js`
-(game logic lives in the tail of the file) and in `assets/index-8d3db6dc.css` / `index.html`
+Upstream ships only build output, so tuning happens directly in `assets/index-cddef066.js`
+(game logic lives in the tail of the file) and in `assets/index-49044fd1.css` / `index.html`
 (both unminified-friendly).
 
 ## Run
@@ -69,11 +69,36 @@ at the player):
     16 time since player hurt / 3
     17 allies within 6 m / 5
 
-Rewards: +0.1 per damage point dealt, -0.03 per damage point taken, -0.01 per decision,
--0.05 per miss or whiff, -2 on death, +5 to every living bot when the player dies. Class
-shaping on top: melee gets +0.05 per metre closed (capped at 1 m per tick); shooters get
-+0.02 per tick holding line of sight at 7.5..15 m and -0.02 closer than 6 m. Each head
-samples with 10 % uniform exploration.
+Rewards go to the bot that earned them; the two nets are shared per class, so every
+bot's transitions train the same net, but credit is per transition:
+
+    +1 +0.1/dmg   landed a hit (melee swing or shot that connects)
+    -0.03/dmg     damage taken
+
+Nothing else: no per-tick cost, no miss penalty, no death penalty, no class shaping, no
+kill or team bonus. Each head samples with 10 % uniform exploration. Weights persist in
+`server/data/` across restarts; do not delete them.
+
+## Team deathmatch (local only)
+
+The menu's second button, TEAM DEATHMATCH 10v10, splits the map: ALPHA spawns along the
+north edge (z > 0), BRAVO along the south (z < 0). You are on ALPHA with 9 bots; BRAVO
+fields 10. Each team is 4 melee, 2 heavies, 4 shooters, all driven by the same RL nets as
+survival. Blue marker cube = ALPHA, green = BRAVO.
+
+Bots pick the nearest living enemy across both teams (the player counts for BRAVO) and
+fight it with the same melee / ranged code that survival uses against you; the target's
+feature slots in the observation (health, velocity, facing, reload...) are filled from
+whatever they are hunting, so the trained weights apply unchanged. Each team gets its own
+flow field, a multi-source BFS from every living enemy, so bots without line of sight
+path towards the closest one instead of hugging walls. Bot models face their own target,
+not you.
+
+A round ends when one side has nobody left. You respawn at an ALPHA spawn while any ALPHA
+bot is alive; once the last one falls, your death ends the round. Five seconds later the
+next round starts with fresh teams. HUD shows `ALPHA n · m BRAVO` and the round number.
+Bot-on-bot kills do not score or drop pickups; only your own kills do. Team mode does
+not touch the survival save.
 
 The same backend keeps your run: wave, score, kills, health, weapon and ammo are posted to
 `POST /save` every 4 s while playing. Reload the page and the menu button reads
