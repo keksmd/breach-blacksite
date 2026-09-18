@@ -5,7 +5,7 @@
 Fork of `alesha-pro/bench-portal @ 2fa5c82` → `games/breach-blacksite-astra`.
 
 Static Three.js horde-survival FPS. No build step: `index.html` + prebuilt bundle in `assets/`.
-Upstream ships only build output, so tuning happens directly in `assets/index-01be8758.js`
+Upstream ships only build output, so tuning happens directly in `assets/index-f8009e23.js`
 (game logic lives in the tail of the file) and in `assets/index-49044fd1.css` / `index.html`
 (both unminified-friendly).
 
@@ -81,19 +81,31 @@ bot's transitions train the same net, but credit is per transition:
     +1 +0.1/dmg   landed a hit (melee swing or shot that connects)
     +0.05/m       ...times the distance the shot travelled, so a 20 m hit pays +1 extra
     -0.03/dmg     damage taken
+    +0.02/tick    team mode only: alive, ramping from 0 over the bot's first 30 s
+                  (0.04 per second at full ramp, so a minute alive is worth ~2 hits)
 
-Nothing else: no per-tick cost, no miss penalty, no death penalty, no class shaping, no
+Nothing else: no miss penalty, no death penalty, no class shaping, no
 kill or team bonus. Each head samples with 10 % uniform exploration. Weights persist in
 `server/data/` across restarts; do not delete them.
 
 ## Team deathmatch (local only)
 
-The menu's second button, TEAM DEATHMATCH 10v10, splits the map: ALPHA spawns along the
-east edge (x > 0), BRAVO along the west (x < 0), so the long open lanes along the north and
-south walls cross the front instead of running parallel to it. You are on ALPHA with 9
-bots and start at an ALPHA spawn; BRAVO fields 10. Every bot is a soldier with a rifle drawn at random from your own weapon table
-(MK18, M590, MK14, P226), driven by the same RL nets as survival. Blue marker cube = ALPHA,
-green = BRAVO.
+The menu's second button, TEAM DEATHMATCH 10v10, gives each team one spawn: ALPHA in the
+south-east pocket behind the MAINTENANCE block (the DANGER / LIVE POWER sign, around
+x 30 z 28, spread 2.5 x 3 m), BRAVO in the long strip along the west wall (around x -31.5
+z 18, spread 2 x 6 m). You are on ALPHA with 9 bots, start in that pocket facing west;
+BRAVO fields 10. 3 of every 10 bots per team carry only the knife and run at 6.9 m/s
+(between your walk and sprint); the rest are soldiers with a rifle drawn at random from
+your own weapon table (MK18, M590, MK14, P226), all driven by the same RL nets as
+survival (knife bots by the melee net). No markers over heads: team colour is on the
+shoulder and neck chevrons, blue = ALPHA, green = BRAVO.
+
+A round minimap sits under the BREACH title, north up, whole arena: box colliders above
+1 m as grey blocks, zone names (OPS, BAY 03, SECTOR 07, MAINT, POWER, WEST LANE, YARD,
+LOGISTICS, SOUTH LOT), you as the gold arrow, living ALPHA bots as blue dots, and BRAVO
+only as ALPHA's team memory: bright green when seen in the last second, dim green for the
+remembered position up to 12 s. Your own line of sight feeds that memory too, so what you
+see, your bots know. In survival it shows every hostile in red (screamers orange).
 
 Bots only know what they have seen. Every 0.35 s each bot casts line-of-sight rays to
 every enemy within 48 m; the ones it can see are its candidates, and it hunts the nearest

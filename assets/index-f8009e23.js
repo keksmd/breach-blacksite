@@ -25813,7 +25813,7 @@ function Lv(i, t, e = !1, n = !1, team = 1, weapon = -1) {
     ...r,
     hp: TM.on ? TM_BOT_HP : e ? 190 : 100,
     maxHp: TM.on ? TM_BOT_HP : e ? 190 : 100,
-    speed: TM.on ? TM_BOT_SPEED : (e ? 2.1 : n ? 2.6 : 3.2) + Math.min(en * 0.12, 1.4),
+    speed: TM.on ? (n ? TM_BOT_SPEED : TM_KNIFE_SPEED) : (e ? 2.1 : n ? 2.6 : 3.2) + Math.min(en * 0.12, 1.4),
     heavy: e,
     ranged: n,
     phase: Pe(0, 6),
@@ -25835,9 +25835,14 @@ function Lv(i, t, e = !1, n = !1, team = 1, weapon = -1) {
     react: Pe(TM_REACT_MIN, TM_REACT_MAX),
     vis: [],
   };
-  if (s.rl || TM.on) {
-    const mk = new ee(new fc(0.26, 0.26, 0.26, 1, 0.04), new tn({ color: team === 0 ? 5197823 : 3800968 }));
-    (mk.position.set(0, e ? 2.25 : 2.1, 0), r.root.add(mk));
+  if (TM.on) {
+    const cm = new tn({ color: team === 0 ? 5197823 : 3800968 });
+    for (const d of [-1, 1]) {
+      const ch = new ee(new fc(0.05, 0.11, 0.09, 1, 0.01), cm);
+      (ch.position.set(d * 0.3, 1.33, 0), r.root.add(ch));
+    }
+    const bk = new ee(new fc(0.16, 0.05, 0.03, 1, 0.01), cm);
+    (bk.position.set(0, 1.42, -0.33), r.root.add(bk));
   }
   return (Je.push(s), xs(new D(i, 0.2, t), 12, 16761973, 1.5), s);
 }
@@ -26207,7 +26212,7 @@ function slideMove(n, dx, dz, rad, fx, fz, r = 0) {
 }
 function tmBotBody(e, i, c) {
   const n = e.root.position,
-    wp = Oe[e.weapon],
+    wp = e.weapon < 0 ? null : Oe[e.weapon],
     feet = n.y;
   ((e.vy -= 17 * i), (n.y += e.vy * i), (e.hopT -= i));
   let gnd = 0;
@@ -26217,6 +26222,7 @@ function tmBotBody(e, i, c) {
   e.grounded && e.hopT <= 0 && !e.hold && sn - (e.lastHurt ?? -10) < 1.5 && Math.random() < i * TM_HOP_RATE && ((e.vy = TM_JUMP), (e.grounded = !1), (e.hopT = 1.2));
   const crouch = e.crouchy && e.grounded && c && (e.hold || e.aim > 0 || e.burst > 0);
   ((e.cy = Tn(e.cy, crouch ? TM_CROUCH : 1, 13, i)), (e.root.scale.y = (e.heavy ? 1.1 : 1) * e.cy));
+  if (!wp) return;
   e.reload > 0 && ((e.reload -= i), e.reload <= 0 && (e.mag = wp.mag));
   e.reload <= 0 && !(e.burst > 0) && !(e.aim > 0) && (e.mag <= 0 || (e.mag < wp.mag * 0.3 && !c)) && (e.reload = wp.reload);
 }
@@ -26995,22 +27001,8 @@ const RL_URL = "http://localhost:8790",
   TM_JUMP = 6.1,
   TM_HOP_RATE = 0.7,
   tmMem = [new Map(), new Map()],
-  TM_SPAWNS = [
-    [
-      [30, 28],
-      [28, -23],
-      [20, -14],
-      [20, 29],
-      [30, -12],
-    ],
-    [
-      [-30, 27],
-      [-30, -16],
-      [-16, 30],
-      [-30, 0],
-      [-9, -29],
-    ],
-  ],
+  TM_SPAWNS = [[[30, 28, 2.5, 3]], [[-31.5, 18, 2, 6]]], TM_KNIFE_SHARE = 0.3, TM_KNIFE_SPEED = 6.9, RL_ALIVE_REWARD = 0.02, RL_ALIVE_RAMP = 30,
+  MM_ZONES = [["OPS", 8, -31], ["BAY 03", -22, -28], ["SECTOR 07", 8, -10], ["MAINT", 30, 7], ["POWER", 30, 28], ["WEST LANE", -31, 18], ["YARD", 0, 8], ["LOGISTICS", -17, -8], ["SOUTH LOT", 5, 28]],
   TM_NAMES = ["ALPHA", "BRAVO"],
   TM = { on: !1, auto: !1, round: 0, wins: [0, 0], next: 0, deaths: 0, clock: 0 },
   RL = { ready: !1, version: 0, policy: null, queue: [], sent: 0, decisions: 0, flushTimer: 0, refreshTimer: 0, statsTimer: 0, saveTimer: 0, save: null, resume: !1, episodes: 0 };
@@ -27104,6 +27096,7 @@ function tmVisUpdate() {
         Math.hypot(p.x - n.x, p.z - n.z) <= TM_SIGHT && zv(n, p) && (vis.push(v), mem.set(v, { x: p.x, z: p.z, at: sn }));
       };
     e.team === 1 && k.health > 0 && see(k, k.pos);
+    e.team === 1 && !TM.auto && k.health > 0 && Math.hypot(n.x - k.pos.x, n.z - k.pos.z) <= TM_SIGHT && zv(k.pos, n) && tmMem[0].set(e, { x: n.x, z: n.z, at: sn });
     for (const g of Je) g !== e && g.alive && g.spawn <= 0 && !g.screamer && g.team !== e.team && see(g, g.root.position);
     e.vis = vis;
   }
@@ -27129,8 +27122,8 @@ function tmSpawnPoint(team) {
   const pts = TM_SPAWNS[team];
   for (let t = 0; t < 40; t++) {
     const b = pts[Math.floor(Math.random() * pts.length)],
-      x = b[0] + Pe(-2.5, 2.5),
-      z = b[1] + Pe(-2.5, 2.5);
+      x = b[0] + Pe(-b[2], b[2]),
+      z = b[1] + Pe(-b[3], b[3]);
     if (!mc(x, z) && ii[gc(x, z)] !== 32767) return [x, z];
   }
   return pts[0];
@@ -27140,19 +27133,21 @@ function tmRound() {
   ((Je.length = 0), TM.round++, (en = TM.round), (gs = 0), (ms = 0), (Fa = 0), (Mi = 0), (TM.next = 0), (TM.clock = 0), (Ho = 0), tmMem[0].clear(), tmMem[1].clear());
   for (let team = 0; team < 2; team++) {
     const bots = team === 0 && !TM.auto ? TM_SIZE - 1 : TM_SIZE;
+    const knives = Math.round(bots * TM_KNIFE_SHARE);
     for (let j = 0; j < bots; j++) {
-      const p = tmSpawnPoint(team);
-      Lv(p[0], p[1], !1, !0, team, Math.floor(Math.random() * Oe.length));
+      const p = tmSpawnPoint(team),
+        knife = j < knives;
+      Lv(p[0], p[1], !1, !knife, team, knife ? -1 : Math.floor(Math.random() * Oe.length));
     }
   }
   const ps = tmSpawnPoint(0);
-  (k.pos.set(ps[0], 1.7, ps[1]), k.vel.set(0, 0, 0), (k.health = TM.auto ? 0 : 100), (k.lastHurt = -10));
+  (k.pos.set(ps[0], 1.7, ps[1]), k.vel.set(0, 0, 0), (k.yaw = Math.PI / 2), (k.health = TM.auto ? 0 : 100), (k.lastHurt = -10));
   (_c(`ROUND ${String(TM.round).padStart(2, "0")}`, `${TM_NAMES[0]} ${TM.wins[0]} : ${TM.wins[1]} ${TM_NAMES[1]}`, 3), Ue.wave(), Xn());
 }
 function tmRespawn() {
   if (TM.auto) return;
   const p = tmSpawnPoint(0);
-  (k.pos.set(p[0], 1.7, p[1]), k.vel.set(0, 0, 0), (k.health = 100), (k.lastHurt = -10), TM.deaths++, (kn = 1));
+  (k.pos.set(p[0], 1.7, p[1]), k.vel.set(0, 0, 0), (k.yaw = Math.PI / 2), (k.health = 100), (k.lastHurt = -10), TM.deaths++, (kn = 1));
   (_c("KIA", "REDEPLOYED AT ALPHA SPAWN", 2.5), Xn());
 }
 function tmUpdate(i) {
@@ -27414,6 +27409,7 @@ function rlPush(e, obs) {
 function rlDecide(e, a, c, bo, bl, T) {
   const taken = (e.rlHp ?? e.hp) - e.hp;
   ((e.rlHp = e.hp), rlReward(e, -taken * RL_TAKEN_COST));
+  TM.on && ((e.age = (e.age ?? 0) + RL_TICK), rlReward(e, RL_ALIVE_REWARD * Math.min(1, e.age / RL_ALIVE_RAMP)));
   const obs = rlObs(e, a, c, bo, bl, T);
   rlPush(e, obs);
   const act = rlAct(obs, e.ranged ? RL.policy.ranged : RL.policy.melee);
@@ -27778,7 +27774,38 @@ function cf(i) {
           Qt.updateProjectionMatrix(),
           qh(t))
         : de === "dead" && ((kn = Tn(kn, 0, 3, t)), (Et("damage").style.opacity = kn * 0.6)),
-    TM.auto || DBG_NORENDER || tmRender(t));
+    TM.auto || DBG_NORENDER || tmRender(t),
+    TM.auto || DBG_NORENDER || de !== "playing" || tmMinimap());
+}
+function tmMinimap() {
+  const cv = Et("minimap");
+  if (!cv) return;
+  const g = cv.getContext("2d"),
+    W = cv.width,
+    c = W / 2,
+    sc = c / 37;
+  g.clearRect(0, 0, W, W);
+  g.save();
+  (g.beginPath(), g.arc(c, c, c - 1, 0, Math.PI * 2), g.clip());
+  ((g.fillStyle = "#0b1a1cc8"), g.fillRect(0, 0, W, W));
+  g.fillStyle = "#c8d4bf55";
+  for (const b of Gr.colliders) b.y1 > 1 && g.fillRect(c + (b.x - b.w) * sc, c + (b.z - b.d) * sc, b.w * 2 * sc, b.d * 2 * sc);
+  ((g.fillStyle = "#dfe8c7"), (g.font = "600 13px Barlow, monospace"), (g.textAlign = "center"), (g.textBaseline = "middle"));
+  for (const [t, x, z] of MM_ZONES) g.fillText(t, c + x * sc, c + z * sc);
+  const dot = (x, z, col, r = 4) => {
+    ((g.fillStyle = col), g.beginPath(), g.arc(c + x * sc, c + z * sc, r, 0, Math.PI * 2), g.fill());
+  };
+  if (TM.on) {
+    for (const e of Je) e.alive && e.team === 0 && dot(e.root.position.x, e.root.position.z, "#4f8cff");
+    for (const [v, m] of tmMem[0]) v !== k && v.alive && dot(m.x, m.z, sn - m.at < 1 ? "#39ff88" : "#39ff8877");
+  } else for (const e of Je) e.alive && dot(e.root.position.x, e.root.position.z, e.screamer ? "#ff7a3a" : "#ff4d4d");
+  const px = c + k.pos.x * sc,
+    pz = c + k.pos.z * sc,
+    fx = -Math.sin(k.yaw),
+    fz = -Math.cos(k.yaw);
+  ((g.fillStyle = "#e3ef85"), g.beginPath(), g.moveTo(px + fx * 11, pz + fz * 11), g.lineTo(px - fz * 5 - fx * 4, pz + fx * 5 - fz * 4), g.lineTo(px + fz * 5 - fx * 4, pz - fx * 5 - fz * 4), g.closePath(), g.fill());
+  g.restore();
+  ((g.strokeStyle = "#cbd4bf66"), (g.lineWidth = 2), g.beginPath(), g.arc(c, c, c - 1, 0, Math.PI * 2), g.stroke());
 }
 function tmRender(t) {
   (Cv(Se, Je, li),
