@@ -13,6 +13,7 @@ seconds, not once per round. GET /policy returns the current weights, GET
 """
 import json
 import os
+import signal
 import sys
 import threading
 import time
@@ -215,12 +216,22 @@ def learn(fresh):
     return out
 
 
+def persist_all():
+    with lock:
+        for p in policies.values():
+            p.save()
+
+
 def persister():
     while True:
         time.sleep(PERSIST_EVERY)
-        with lock:
-            for p in policies.values():
-                p.save()
+        persist_all()
+
+
+def shutdown(signum, frame):
+    persist_all()
+    print(f"[exit] saved melee u{policies['melee'].updates}, ranged u{policies['ranged'].updates}", flush=True)
+    sys.exit(0)
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -336,6 +347,8 @@ def load_state():
                 d = json.load(f)
             if d.get("obs") == OBS:
                 policies[name].load(d)
+            else:
+                print(f"[boot] {path} has obs={d.get('obs')}, current build wants {OBS}; starting {name} fresh", flush=True)
     if os.path.exists(TR_FILE):
         with open(TR_FILE) as f:
             for line in f:
@@ -363,6 +376,8 @@ def reporter():
 
 if __name__ == "__main__":
     load_state()
+    signal.signal(signal.SIGINT, shutdown)
+    signal.signal(signal.SIGTERM, shutdown)
     threading.Thread(target=persister, daemon=True).start()
     threading.Thread(target=reporter, daemon=True).start()
     srv = ThreadingHTTPServer(("127.0.0.1", PORT), Handler)
