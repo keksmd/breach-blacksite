@@ -26138,6 +26138,7 @@ function zv(i, t) {
   }
   return !0;
 }
+const CLEAR = 0.002;
 function Ba(i, t, e, n = 0.36, r = 0) {
   let s = rn(i.x + t, -34.4, 34.4),
     a = rn(i.z + e, -33.6, 33.6);
@@ -26146,17 +26147,42 @@ function Ba(i, t, e, n = 0.36, r = 0) {
     const px = o.w + n - Math.abs(i.x - o.x),
       pz = o.d + n - Math.abs(i.z - o.z);
     if (px > 0 && pz > 0) {
-      px <= pz ? (s = i.x < o.x ? o.x - o.w - n : o.x + o.w + n) : (a = i.z < o.z ? o.z - o.d - n : o.z + o.d + n);
+      px <= pz ? (s = i.x < o.x ? o.x - o.w - n - CLEAR : o.x + o.w + n + CLEAR) : (a = i.z < o.z ? o.z - o.d - n - CLEAR : o.z + o.d + n + CLEAR);
       continue;
     }
-    pz > 0 && Math.abs(s - o.x) < o.w + n && (s = i.x < o.x ? o.x - o.w - n : o.x + o.w + n);
+    pz > 0 && Math.abs(s - o.x) < o.w + n && (s = i.x < o.x ? o.x - o.w - n - CLEAR : o.x + o.w + n + CLEAR);
   }
   i.x = s;
   for (const o of Gr.colliders)
     o.y1 < r + 0.15 ||
       o.y0 > r + 1.5 ||
-      (Math.abs(i.x - o.x) < o.w + n && Math.abs(a - o.z) < o.d + n && (a = i.z < o.z ? o.z - o.d - n : o.z + o.d + n));
+      (Math.abs(i.x - o.x) < o.w + n && Math.abs(a - o.z) < o.d + n && (a = i.z < o.z ? o.z - o.d - n - CLEAR : o.z + o.d + n + CLEAR));
   i.z = a;
+  unwedge(i, n, r);
+}
+function boxed(x, z, n, r, skip) {
+  for (const o of Gr.colliders)
+    if (o !== skip && !(o.y1 < r + 0.15 || o.y0 > r + 1.5) && Math.abs(x - o.x) < o.w + n && Math.abs(z - o.z) < o.d + n) return o;
+  return null;
+}
+function unwedge(i, n, r) {
+  for (let pass = 0; pass < 3; pass++) {
+    const o = boxed(i.x, i.z, n, r, null);
+    if (!o) return;
+    let best = null,
+      bd = 1 / 0;
+    for (const c of [
+      [o.x - o.w - n - CLEAR, i.z],
+      [o.x + o.w + n + CLEAR, i.z],
+      [i.x, o.z - o.d - n - CLEAR],
+      [i.x, o.z + o.d + n + CLEAR],
+    ]) {
+      const d = Math.hypot(c[0] - i.x, c[1] - i.z);
+      d < bd && !boxed(c[0], c[1], n, r, null) && ((best = c), (bd = d));
+    }
+    if (!best) return;
+    ((i.x = best[0]), (i.z = best[1]));
+  }
 }
 function slideMove(n, dx, dz, rad, fx, fz) {
   const sx = n.x,
@@ -26676,13 +26702,15 @@ function Yv(i) {
     Ba(k.pos, k.vel.x * i, k.vel.z * i, 0.34, Math.max(0, k.pos.y - k.height)));
   const r = k.slide > 0 ? 1.02 : Fe.has("KeyC") && !t ? 1.25 : 1.7,
     s = k.height;
-  ((k.height = Tn(k.height, r, 13, i)), (k.pos.y += k.height - s), (k.vertical -= 17 * i), (k.pos.y += k.vertical * i));
+  ((k.height = Tn(k.height, r, 13, i)), (k.pos.y += k.height - s));
+  const feetBefore = k.pos.y - k.height;
+  ((k.vertical -= 17 * i), (k.pos.y += k.vertical * i));
   let a = 0;
   for (const u of Gr.colliders)
     u.y1 < 3.5 &&
       Math.abs(k.pos.x - u.x) < u.w + 0.34 &&
       Math.abs(k.pos.z - u.z) < u.d + 0.34 &&
-      k.pos.y - k.height >= u.y1 - 0.3 &&
+      feetBefore >= u.y1 - 0.3 &&
       k.vertical <= 0 &&
       (a = Math.max(a, u.y1));
   (k.pos.y > a + k.height + 0.04 && (k.grounded = !1),
@@ -27605,6 +27633,12 @@ function tmRender(t) {
     fa > 1 && ((lf = Math.round(Wo / fa)), (Wo = 0), (fa = 0)));
 }
 window.__BREACH__ = {
+  get player() {
+    return k;
+  },
+  get colliders() {
+    return Gr.colliders;
+  },
   get state() {
     return {
       mode: de,

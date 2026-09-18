@@ -5,7 +5,7 @@
 Fork of `alesha-pro/bench-portal @ 2fa5c82` → `games/breach-blacksite-astra`.
 
 Static Three.js horde-survival FPS. No build step: `index.html` + prebuilt bundle in `assets/`.
-Upstream ships only build output, so tuning happens directly in `assets/index-5b07d2b6.js`
+Upstream ships only build output, so tuning happens directly in `assets/index-442dcc9f.js`
 (game logic lives in the tail of the file) and in `assets/index-49044fd1.css` / `index.html`
 (both unminified-friendly).
 
@@ -120,6 +120,14 @@ body that ended up overlapping a box (stepping off a crate edge, crouching next 
 a knockback) is nudged out by a few centimetres instead of being thrown across it. A body
 that is inside a box on both axes leaves along the axis of least penetration. Standing room on
 top of a box matches the body radius, so you can sit on a crate edge without being pushed off.
+Push-outs land 2 mm clear of the inflated box, never on its edge, because a body parked exactly
+on the edge reads as inside on the next frame and gets shoved along the other axis (that was
+the sideways lurch when walking into a crate face). After the per-box pass a body that is still
+inside some box (the 0.2 m slot between two crates, a corner shared by three) is moved to the
+nearest spot that is clear of every box (`unwedge`), so it can never be wedged for good.
+Landing uses the feet height from before gravity was applied for the frame, so a fast fall on a
+slow frame (dt is clamped to 50 ms; at 6 m/s that is 30 cm) cannot pass through a crate top and
+leave you inside the box below it.
 Bots that make no headway on their chosen direction (a wall or a corner) fall back to the flow
 field direction, then to sliding along the wall either way, so they do not park in corners.
 
@@ -146,4 +154,6 @@ ready/version/bots/decisions/queued/sent.
 ## Debug hook
 
 The bundle exposes `window.__BREACH__.state` — mode, wave, hostiles, score, health,
-weapon, ammo, fps, drawCalls, player position and live target list.
+weapon, ammo, fps, drawCalls, player position and live target list. `__BREACH__.player` is
+the live player object (`pos` is the eye, feet are `pos.y - height`) and `__BREACH__.colliders`
+the box list, so collision cases can be reproduced from the console by teleporting.
