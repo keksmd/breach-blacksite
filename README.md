@@ -5,7 +5,7 @@
 Fork of `alesha-pro/bench-portal @ 2fa5c82` → `games/breach-blacksite-astra`.
 
 Static Three.js horde-survival FPS. No build step: `index.html` + prebuilt bundle in `assets/`.
-Upstream ships only build output, so tuning happens directly in `assets/index-6e38581d.js`
+Upstream ships only build output, so tuning happens directly in `assets/index-5b07d2b6.js`
 (game logic lives in the tail of the file) and in `assets/index-49044fd1.css` / `index.html`
 (both unminified-friendly).
 
@@ -32,9 +32,15 @@ Two nets, one for melee hostiles and one for shooters, each MLP 36-64 with four 
     aim   7   lead the shot by 0..0.9 s of player velocity, sampled at windup start
     value 1   critic (state value) used for the advantage
 
-Hits are geometry, not dice: a shot lands when the aimed point is within 0.8 m of where
-the player actually is when the windup ends, so shooters have to learn to lead a moving
-target. A melee swing further than 1.9 m is a whiff (-0.05, cooldown lost).
+Hits are geometry, not dice. When the windup ends the bot fires one ray from its muzzle
+toward the aimed point (where the target was at windup start plus the chosen lead), with a
+fixed angular spread of 0.02 rad (heavies 0.026). The ray stops at the first box collider
+it crosses and at the first body it meets, using the same head / torso / legs spheres the
+player's bullets use. So there is no range cap and no distance coefficient: a 1 degree
+wobble is 0.2 m at 10 m and 1 m at 50 m, cover blocks the bullet, a crouched player behind
+a 1.35 m barrier is not visible to a muzzle at 1.3 m, and a teammate standing in the line
+of fire eats the shot (no damage, no reward). Tracers end where the ray stopped, so a shot
+into a wall shows as a shot into a wall. A melee swing further than 1.9 m is a whiff.
 
 Learning is online. The game posts transitions (obs, actions, reward, next obs) every
 second; the backend applies each batch immediately as an advantage actor-critic step
@@ -73,6 +79,7 @@ Rewards go to the bot that earned them; the two nets are shared per class, so ev
 bot's transitions train the same net, but credit is per transition:
 
     +1 +0.1/dmg   landed a hit (melee swing or shot that connects)
+    +0.05/m       ...times the distance the shot travelled, so a 20 m hit pays +1 extra
     -0.03/dmg     damage taken
 
 Nothing else: no per-tick cost, no miss penalty, no death penalty, no class shaping, no
@@ -99,6 +106,10 @@ bot is alive; once the last one falls, your death ends the round. Five seconds l
 next round starts with fresh teams. HUD shows `ALPHA n · m BRAVO` and the round number.
 Bot-on-bot kills do not score or drop pickups; only your own kills do. Team mode does
 not touch the survival save.
+
+Stats are equal in team mode: every bot has 100 hp and runs at your walking speed (5.1
+m/s), shooters deal the MK18's 29 per hit and DMRs the MK14's 92, headshots are x2.5 for
+both sides instead of the survival mode's one-shot kill on bots.
 A round also ends after 240 s of sim time as a draw, so camping shooters cannot stall it.
 
 ## Collision

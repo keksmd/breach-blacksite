@@ -25811,9 +25811,9 @@ function Lv(i, t, e = !1, n = !1, team = 1) {
   (r.root.position.set(i, 0, t), Se.add(r.root));
   const s = {
     ...r,
-    hp: e ? 190 : 100,
-    maxHp: e ? 190 : 100,
-    speed: (e ? 2.1 : n ? 2.6 : 3.2) + Math.min(en * 0.12, 1.4),
+    hp: TM.on ? TM_BOT_HP : e ? 190 : 100,
+    maxHp: TM.on ? TM_BOT_HP : e ? 190 : 100,
+    speed: TM.on ? TM_BOT_SPEED : (e ? 2.1 : n ? 2.6 : 3.2) + Math.min(en * 0.12, 1.4),
     heavy: e,
     ranged: n,
     phase: Pe(0, 6),
@@ -26287,7 +26287,7 @@ function Vv() {
     if ((o < 3 && tf(t, f), u)) {
       ((n = !0), (r ||= m));
       const g = Ut === 1 ? rn(SHOTGUN_CLOSE_MULT - h / SHOTGUN_FALLOFF_METERS, 0.22, SHOTGUN_CLOSE_MULT) : 1;
-      let _ = m ? HEADSHOT_LETHAL_DAMAGE : i.damage * g;
+      let _ = m ? (TM.on ? i.damage * TM_HEAD_MULT : HEADSHOT_LETHAL_DAMAGE) : i.damage * g;
       const d = e.get(u) || { damage: 0, head: !1, point: f, direction: _r.clone() };
       ((d.damage += _),
         (d.head ||= m),
@@ -26863,6 +26863,19 @@ const RANGED_HOLD_MIN = 7.5,
   RANGED_MISS_SPREAD = 2.1,
   RANGED_DAMAGE = 8,
   RANGED_DMR_DAMAGE = 15,
+  RANGED_SPREAD = 0.02,
+  RANGED_RAY_MAX = 140,
+  TM_BOT_HP = 100,
+  TM_BOT_SPEED = 5.1,
+  TM_SHOT_DAMAGE = 29,
+  TM_DMR_DAMAGE = 92,
+  TM_HEAD_MULT = 2.5,
+  RL_RANGE_BONUS = 0.05,
+  BODY_PARTS = [
+    { y: 1.73, r: 0.255, head: !0 },
+    { y: 1.13, r: 0.44, head: !1 },
+    { y: 0.57, r: 0.33, head: !1 },
+  ],
   FLANK_STRENGTH = 0.85;
 const RL_URL = "http://localhost:8790",
   RL_TICK = 0.5,
@@ -27160,8 +27173,72 @@ function rlAct(obs, p) {
 function rlReward(e, x) {
   e.rlStep && (e.rlStep.r += x);
 }
-function rlDealt(e, x) {
-  e.rl && rlReward(e, x * 0.1 + RL_HIT_BONUS);
+function rlDealt(e, x, dist = 0) {
+  e.rl && rlReward(e, x * 0.1 + RL_HIT_BONUS + dist * RL_RANGE_BONUS);
+}
+function rayBox(o, d, max) {
+  let best = max;
+  for (const b of Gr.colliders) {
+    let t0 = 0,
+      t1 = best,
+      ok = !0;
+    for (const [pp, dd, lo, hi] of [
+      [o.x, d.x, b.x - b.w, b.x + b.w],
+      [o.y, d.y, b.y0, b.y1],
+      [o.z, d.z, b.z - b.d, b.z + b.d],
+    ]) {
+      if (Math.abs(dd) < 1e-9) {
+        if (pp < lo || pp > hi) {
+          ok = !1;
+          break;
+        }
+        continue;
+      }
+      let a = (lo - pp) / dd,
+        c = (hi - pp) / dd;
+      if ((a > c && ([a, c] = [c, a]), a > t0 && (t0 = a), c < t1 && (t1 = c), t0 > t1)) {
+        ok = !1;
+        break;
+      }
+    }
+    ok && t0 < best && (best = t0);
+  }
+  return best;
+}
+function rayBody(o, d, fx, fy, fz, scale, max) {
+  Wh.set(o, d);
+  let t = max,
+    head = !1;
+  for (const pt of BODY_PARTS) {
+    (Go.center.set(fx, fy + pt.y * scale, fz), (Go.radius = pt.r * scale));
+    const h = Wh.intersectSphere(Go, Hv);
+    if (h) {
+      const w = o.distanceTo(h);
+      w < t && ((t = w), (head = pt.head));
+    }
+  }
+  return t < max ? { t, head } : null;
+}
+function botShot(e, g, w) {
+  const d = w.clone().sub(g).normalize(),
+    sp = RANGED_SPREAD * (e.heavy ? 1.3 : 1),
+    rx = new D().crossVectors(d, new D(0, 1, 0)).normalize(),
+    ry = new D().crossVectors(rx, d);
+  d.addScaledVector(rx, Pe(-sp, sp)).addScaledVector(ry, Pe(-sp, sp)).normalize();
+  let t = rayBox(g, d, RANGED_RAY_MAX),
+    victim = null,
+    head = !1;
+  if (k.health > 0 && de === "playing") {
+    const hit = rayBody(g, d, k.pos.x, k.pos.y - k.height, k.pos.z, k.height / 1.7, t);
+    hit && ((t = hit.t), (victim = e.team !== 0 ? tmPlayerTarget() : null), (head = hit.head));
+  }
+  for (const b of Je) {
+    if (b === e || !b.alive || b.spawn > 0 || b.screamer) continue;
+    const hit = rayBody(g, d, b.root.position.x, b.root.position.y, b.root.position.z, b.heavy ? 1.1 : 1, t);
+    hit && ((t = hit.t), (victim = b.team !== e.team ? tmBotTarget(b) : null), (head = hit.head));
+  }
+  const end = g.clone().addScaledVector(d, t);
+  return (tf(g, end, !0), victim || xs(end, 6, 15059342, 1.6, 0.3, 0.06), { victim, head, dist: t });
 }
 function rlPush(e, obs) {
   e.rlStep && ((e.rlStep.o2 = obs), RL.queue.push(e.rlStep), (e.rlStep = null));
@@ -27207,15 +27284,15 @@ function rlRanged(e, i, a, c, T) {
   if (e.aim > 0) {
     if (((e.aim -= i), e.aim > 0)) return;
     const g = n.clone().add(new D(0.2, 1.3, 0.3)),
-      w = e.aimAnchor.clone().addScaledVector(e.aimVel, RL_LEAD[e.rlAim ?? 0]).add(new D(Pe(-0.15, 0.15), Pe(-0.12, 0.12), Pe(-0.15, 0.15))),
+      w = e.aimAnchor.clone().addScaledVector(e.aimVel, RL_LEAD[e.rlAim ?? 0]),
       dmr = e.root.userData.enemyKind === "ranged-dmr",
-      dmg = dmr ? RANGED_DMR_DAMAGE : RANGED_DAMAGE,
-      hit = c && a < 30 && Math.hypot(w.x - T.pos.x, w.z - T.pos.z) < 0.8 && Math.abs(w.y - T.pos.y) < 1.2;
-    (tf(g, w, !0),
-      xs(g, 9, 16768443, 1.7, 0.12, 0.13),
+      base = TM.on ? (dmr ? TM_DMR_DAMAGE : TM_SHOT_DAMAGE) : dmr ? RANGED_DMR_DAMAGE : RANGED_DAMAGE,
+      shot = botShot(e, g, w),
+      dmg = shot.head && TM.on ? base * TM_HEAD_MULT : base;
+    (xs(g, 9, 16768443, 1.7, 0.12, 0.13),
       xs(g, 5, 7566195, 0.9, 0.5, 0.16, new D(Pe(-0.4, 0.4), Pe(0.3, 1), Pe(-0.4, 0.4))),
       Ue.enemyShot(dmr ? 1 : 0, a),
-      hit && (rlDealt(e, dmg), tmHurt(T, dmg, e)),
+      shot.victim && (rlDealt(e, dmg, shot.dist), tmHurt(shot.victim, dmg, e)),
       (e.attack = Pe(RANGED_COOLDOWN_MIN, RANGED_COOLDOWN_MAX)));
   } else if (e.rlFire === 1 && e.attack <= 0) {
     ((e.rlFire = 0),
