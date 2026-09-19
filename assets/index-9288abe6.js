@@ -26990,7 +26990,7 @@ const RL_URL = "http://localhost:8790",
   RL_REFRESH_EVERY = 3,
   RL_STATS_EVERY = 10,
   RL_SAVE_EVERY = 4,
-  RL_OBS = 36,
+  RL_OBS = 41,
   RL_LEAD = [0, 0.15, 0.3, 0.45, 0.6, 0.75, 0.9],
   RL_HIT_BONUS = 1,
   RL_TAKEN_COST = 0.03,
@@ -27014,6 +27014,7 @@ const RL_URL = "http://localhost:8790",
   ZONE_RATE = 100 / 60,
   ZONE_RESPAWN = 5,
   RL_ZONE_REWARD = 0.05,
+  RL_ZONE_WIN = 2,
   TM_MODE_NAMES = { tdm: "TEAM DEATHMATCH", zone: "ZONE CONTROL" },
   RL = { ready: !1, version: 0, policy: null, queue: [], sent: 0, decisions: 0, flushTimer: 0, refreshTimer: 0, statsTimer: 0, saveTimer: 0, save: null, resume: !1, episodes: 0 };
 const zoneMesh = new Me();
@@ -27211,7 +27212,7 @@ function tmZoneUpdate(i) {
   ((TM.hud -= i), TM.hud <= 0 && ((TM.hud = 0.25), Xn()));
   const lead = TM.cap[0] >= 100 ? 0 : TM.cap[1] >= 100 ? 1 : -1;
   if (lead < 0) return;
-  (TM.wins[lead]++, (TM.next = 5), rlEndAll(0), _c(`${TM_NAMES[lead]} HOLDS THE ZONE`, `${TM_NAMES[0]} ${TM.wins[0]} : ${TM.wins[1]} ${TM_NAMES[1]}`, 4), Ue.wave(), Xn());
+  (TM.wins[lead]++, (TM.next = 5), rlEndTeams(lead, RL_ZONE_WIN), _c(`${TM_NAMES[lead]} HOLDS THE ZONE`, `${TM_NAMES[0]} ${TM.wins[0]} : ${TM.wins[1]} ${TM_NAMES[1]}`, 4), Ue.wave(), Xn());
 }
 function tmAutoBoot() {
   const auto = new URLSearchParams(location.search).get("auto");
@@ -27326,6 +27327,14 @@ function rlObs(e, a, c, bo, bl, T) {
     const u = rlDir(bo, bl, d);
     obs.push(rlProbe(n, u[0], u[1]));
   }
+  if (TM.on && TM.mode === "zone") {
+    const zx = ZONE.x - n.x,
+      zz = ZONE.z - n.z,
+      zd = Math.hypot(zx, zz) || 1,
+      ux = zx / zd,
+      uz = zz / zd;
+    obs.push(zd <= ZONE.r ? 1 : 0, ux * bo + uz * bl, uz * bo - ux * bl, rn(zd / 40, 0, 1), (TM.cap[e.team] - TM.cap[1 - e.team]) / 100);
+  } else obs.push(0, 0, 0, 0, 0);
   return obs;
 }
 function rlSoftmax(h, W, b) {
@@ -27467,6 +27476,10 @@ function rlDecide(e, a, c, bo, bl, T) {
 }
 function rlEnd(e, bonus) {
   e.rl && e.rlStep && (rlReward(e, bonus), rlPush(e, null));
+}
+function rlEndTeams(winner, bonus) {
+  for (const e of Je) rlEnd(e, e.team === winner ? bonus : -bonus);
+  rlFlush();
 }
 function rlEndAll(bonus) {
   for (const e of Je) rlEnd(e, bonus);

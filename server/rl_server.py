@@ -29,7 +29,8 @@ POLICY_FILES = {"melee": os.path.join(DATA, "policy_melee.json"), "ranged": os.p
 SAVE_FILE = os.path.join(DATA, "save.json")
 PORT = int(os.environ.get("RL_PORT", "8790"))
 
-OBS, HID = 36, 64
+OBS, HID = 41, 64
+OBS_LEGACY = 36
 HEADS = {"m": 9, "f": 2, "a": 7}
 GAMMA = 0.96
 LR = 1e-3
@@ -134,6 +135,8 @@ class Policy:
         for k in self.p:
             if k in d:
                 self.p[k] = np.array(d[k], dtype=np.float64)
+        if self.p["W1"].shape[0] < OBS:
+            self.p["W1"] = np.vstack([self.p["W1"], np.zeros((OBS - self.p["W1"].shape[0], HID))])
         self.updates = int(d.get("version", 0))
         self.m = {k: np.zeros_like(v) for k, v in self.p.items()}
         self.v = {k: np.zeros_like(v) for k, v in self.p.items()}
@@ -166,11 +169,18 @@ def policy_json():
     }
 
 
+def pad(o):
+    """Observations recorded before the zone features were added get zeros in the new slots."""
+    if isinstance(o, list) and len(o) == OBS_LEGACY:
+        return o + [0.0] * (OBS - OBS_LEGACY)
+    return o
+
+
 def valid(tr):
-    o = tr.get("o")
+    o = tr["o"] = pad(tr.get("o"))
     if not isinstance(o, list) or len(o) != OBS:
         return False
-    o2 = tr.get("o2")
+    o2 = tr["o2"] = pad(tr.get("o2"))
     if o2 is not None and (not isinstance(o2, list) or len(o2) != OBS):
         return False
     for k, n in HEADS.items():
@@ -345,7 +355,7 @@ def load_state():
         if os.path.exists(path):
             with open(path) as f:
                 d = json.load(f)
-            if d.get("obs") == OBS:
+            if d.get("obs") in (OBS, OBS_LEGACY):
                 policies[name].load(d)
             else:
                 print(f"[boot] {path} has obs={d.get('obs')}, current build wants {OBS}; starting {name} fresh", flush=True)

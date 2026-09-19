@@ -5,7 +5,7 @@
 Fork of `alesha-pro/bench-portal @ 2fa5c82` → `games/breach-blacksite-astra`.
 
 Static Three.js horde-survival FPS. No build step: `index.html` + prebuilt bundle in `assets/`.
-Upstream ships only build output, so tuning happens directly in `assets/index-166973e5.js`
+Upstream ships only build output, so tuning happens directly in `assets/index-9288abe6.js`
 (game logic lives in the tail of the file) and in `assets/index-49044fd1.css` / `index.html`
 (both unminified-friendly).
 
@@ -154,6 +154,15 @@ earn +0.05 per decision while inside the circle on top of the usual hit / damage
 `?auto=zone` runs it headless, `__BREACH__.start(2)` from script, and
 `__BREACH__.state.team` reports `mode`, `cap` (both percentages) and `queue` (bots waiting
 to respawn).
+
+The nets see the zone. Five observation slots (37-41, zeros outside zone mode) carry: in
+the circle or not, the direction to the zone centre in the bot's movement frame (forward
+and lateral components), the distance over 40 m, and own minus enemy percentage. Rewards
+on top of the usual hit / damage ones: +0.05 per decision inside the circle, and at the
+end of the round +2 to every bot on the side that reached 100 % and -2 to the other side.
+The observation grew from 36 to 41; `rl_server.py` pads older weights with zero rows and
+older transitions with zeros, so the survival and deathmatch training carries over
+unchanged (the pre-zone weights are kept in `server/data/backup-obs36/`).
 
 Stats are the same on both sides in team mode. Bots have 100 hp, run at your walking speed
 (5.1 m/s) and shoot with the weapon table's numbers: the same damage, pellet count, angular
