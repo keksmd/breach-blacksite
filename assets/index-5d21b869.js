@@ -26998,6 +26998,7 @@ const RANGED_HOLD_MIN = 7.5,
 const RL_URL = "http://localhost:8790",
   RL_TICK = 0.5,
   RL_EPS = 0.1,
+  RL_ARCH = "tanh2",
   RL_FLUSH_EVERY = 1,
   RL_REFRESH_EVERY = 3,
   RL_STATS_EVERY = 10,
@@ -27051,7 +27052,7 @@ function rlFetch(path, ms) {
 function rlRefresh() {
   rlFetch("/policy", 1200)
     .then((p) => {
-      p.obs === RL_OBS && ((RL.policy = p), (RL.version = p.version), (RL.ready = !0), rlStatus());
+      p.obs === RL_OBS && p.arch === RL_ARCH && ((RL.policy = p), (RL.version = p.version), (RL.ready = !0), rlStatus());
     })
     .catch(() => {});
 }
@@ -27349,13 +27350,22 @@ function rlObs(e, a, c, bo, bl, T) {
   } else obs.push(0, 0, 0, 0, 0);
   return obs;
 }
-function rlSoftmax(h, W, b) {
+function rlLayer(x, W, b, act) {
+  const h = new Array(b.length);
+  for (let j = 0; j < h.length; j++) {
+    let s = b[j];
+    for (let i = 0; i < x.length; i++) s += x[i] * W[i][j];
+    h[j] = act(s);
+  }
+  return h;
+}
+function rlSoftmax(h, W, b, lm) {
   const z = new Array(b.length);
   let mx = -1e9;
   for (let j = 0; j < z.length; j++) {
     let s = b[j];
     for (let i = 0; i < h.length; i++) s += h[i] * W[i][j];
-    ((z[j] = s), (mx = Math.max(mx, s)));
+    ((z[j] = lm * Math.tanh(s / lm)), (mx = Math.max(mx, z[j])));
   }
   let tot = 0;
   for (let j = 0; j < z.length; j++) ((z[j] = Math.exp(z[j] - mx)), (tot += z[j]));
@@ -27365,13 +27375,9 @@ function rlSoftmax(h, W, b) {
   return z.length - 1;
 }
 function rlAct(obs, p) {
-  const h = new Array(p.b1.length);
-  for (let j = 0; j < h.length; j++) {
-    let s = p.b1[j];
-    for (let i = 0; i < obs.length; i++) s += obs[i] * p.W1[i][j];
-    h[j] = Math.max(0, s);
-  }
-  return { m: rlSoftmax(h, p.Wm, p.bm), f: rlSoftmax(h, p.Wf, p.bf), a: rlSoftmax(h, p.Wa, p.ba) };
+  const h = rlLayer(rlLayer(obs, p.W1, p.b1, Math.tanh), p.W2, p.b2, Math.tanh),
+    lm = p.logit_max;
+  return { m: rlSoftmax(h, p.Wm, p.bm, lm), f: rlSoftmax(h, p.Wf, p.bf, lm), a: rlSoftmax(h, p.Wa, p.ba, lm) };
 }
 function rlReward(e, x) {
   e.rlStep && (e.rlStep.r += x);

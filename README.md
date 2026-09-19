@@ -5,7 +5,7 @@
 Fork of `alesha-pro/bench-portal @ 2fa5c82` → `games/breach-blacksite-astra`.
 
 Static Three.js horde-survival FPS. No build step: `index.html` + prebuilt bundle in `assets/`.
-Upstream ships only build output, so tuning happens directly in `assets/index-564ef3cd.js`
+Upstream ships only build output, so tuning happens directly in `assets/index-5d21b869.js`
 (game logic lives in the tail of the file) and in `assets/index-49044fd1.css` / `index.html`
 (both unminified-friendly).
 
@@ -41,6 +41,15 @@ wobble is 0.2 m at 10 m and 1 m at 50 m, cover blocks the bullet, a crouched pla
 a 1.35 m barrier is not visible to a muzzle at 1.3 m, and a teammate standing in the line
 of fire eats the shot (no damage, no reward). Tracers end where the ray stopped, so a shot
 into a wall shows as a shot into a wall. A melee swing further than 1.9 m is a whiff.
+
+The net is a 41 -> 64 -> 64 MLP with tanh hidden layers, three softmax heads (move,
+fire, aim lead) and a value head. Head logits are soft-clipped to +-6 (`6 * tanh(z / 6)`)
+so no head can collapse to a one-hot policy, and AdamW weight decay (1e-4) keeps the
+weights bounded. The first net (one ReLU layer, plain Adam) drifted after ~700k updates
+into |W| ~ 60, pre-activations ~ 1500, 63 of 64 units always on and entropy 0.000 on every
+head, i.e. a deterministic linear policy whose only exploration was the 10 % epsilon;
+those weights sit in `server/data/backup-relu1-obs41/` together with their transitions
+and are not loaded. `/policy` carries `arch: "tanh2"` and the game refuses any other.
 
 Learning is online. The game posts transitions (obs, actions, reward, next obs) every
 second; the backend applies each batch immediately as an advantage actor-critic step

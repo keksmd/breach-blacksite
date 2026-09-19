@@ -3,9 +3,11 @@
 
 Run it next to the game (python3 server/rl_server.py) and every hostile in
 the game is driven by the policies served here: one net for melee hostiles,
-one for shooters. Each net has a shared hidden layer and four heads: move
+one for shooters. Each net has two tanh hidden layers and four heads: move
 (stop or one of 8 directions around the player), fire, aim lead and a state
-value. The game streams transitions (obs, actions, reward, next obs) on
+value. Logits are soft-clipped to +-LOGIT_MAX so a head can never saturate to
+a one-hot policy, and AdamW weight decay keeps the weights from drifting into
+the regime where the old single-ReLU net became linear and deterministic. The game streams transitions (obs, actions, reward, next obs) on
 POST /transitions about once a second and every batch is applied at once as
 an advantage actor-critic step, so a bot's action is corrected within a few
 seconds, not once per round. GET /policy returns the current weights, GET
@@ -31,9 +33,12 @@ PORT = int(os.environ.get("RL_PORT", "8790"))
 
 OBS, HID = 41, 64
 OBS_LEGACY = 36
+ARCH = "tanh2"
 HEADS = {"m": 9, "f": 2, "a": 7}
 GAMMA = 0.96
-LR = 1e-3
+LR = 5e-4
+WEIGHT_DECAY = 1e-4
+LOGIT_MAX = 6.0
 ENTROPY = 0.02
 VALUE_COEF = 0.5
 REPLAY = 20000
@@ -48,19 +53,21 @@ stats = {"transitions": 0, "reward": deque(maxlen=2000), "hits": deque(maxlen=50
 
 
 class Policy:
-    """Actor-critic MLP: one hidden layer, three softmax heads, one value head."""
+    """Actor-critic MLP: two tanh hidden layers, three softmax heads, one value head."""
 
     def __init__(self, name):
         self.name = name
         rng = np.random.default_rng(0)
         self.p = {
-            "W1": rng.normal(0, 0.2, (OBS, HID)),
+            "W1": rng.normal(0, 1 / np.sqrt(OBS), (OBS, HID)),
             "b1": np.zeros(HID),
-            "Wv": rng.normal(0, 0.1, (HID, 1)),
+            "W2": rng.normal(0, 1 / np.sqrt(HID), (HID, HID)),
+            "b2": np.zeros(HID),
+            "Wv": rng.normal(0, 0.05, (HID, 1)),
             "bv": np.zeros(1),
         }
         for h, n in HEADS.items():
-            self.p["W" + h] = rng.normal(0, 0.1, (HID, n))
+            self.p["W" + h] = rng.normal(0, 0.01, (HID, n))
             self.p["b" + h] = np.zeros(n)
         self.version = 0
         self.updates = 0
@@ -69,23 +76,26 @@ class Policy:
         self.t = 0
 
     def forward(self, X):
-        pre = X @ self.p["W1"] + self.p["b1"]
-        h = np.maximum(pre, 0)
+        h1 = np.tanh(X @ self.p["W1"] + self.p["b1"])
+        h = np.tanh(h1 @ self.p["W2"] + self.p["b2"])
         out = {}
+        zs = {}
         for k in HEADS:
-            z = h @ self.p["W" + k] + self.p["b" + k]
+            raw = h @ self.p["W" + k] + self.p["b" + k]
+            zs[k] = np.tanh(raw / LOGIT_MAX)
+            z = LOGIT_MAX * zs[k]
             z = z - z.max(axis=1, keepdims=True)
             e = np.exp(z)
             out[k] = e / e.sum(axis=1, keepdims=True)
         val = (h @ self.p["Wv"] + self.p["bv"])[:, 0]
-        return h, out, val
+        return (h1, h, zs), out, val
 
     def value(self, X):
         return self.forward(X)[2]
 
     def step(self, X, acts, R, X2, done, use_aim):
         n = len(X)
-        h, probs, val = self.forward(X)
+        (h1, h, zs), probs, val = self.forward(X)
         target = R + GAMMA * (1 - done) * self.value(X2)
         adv = target - val
         adv_n = (adv - adv.mean()) / (adv.std() + 1e-6) if n > 1 else adv
@@ -101,6 +111,7 @@ class Policy:
             mask = use_aim if k == "a" else np.ones(n)
             dz = (p - onehot) * adv_n[:, None] + ENTROPY * p * (logp + ent)
             dz *= mask[:, None] / n
+            dz = dz * (1 - zs[k] ** 2)
             grads["W" + k] = h.T @ dz
             grads["b" + k] = dz.sum(axis=0)
             dh += dz @ self.p["W" + k].T
@@ -108,9 +119,12 @@ class Policy:
         grads["Wv"] = h.T @ dv
         grads["bv"] = dv.sum(axis=0)
         dh += dv @ self.p["Wv"].T
-        dh[h <= 0] = 0
-        grads["W1"] = X.T @ dh
-        grads["b1"] = dh.sum(axis=0)
+        dh = dh * (1 - h**2)
+        grads["W2"] = h1.T @ dh
+        grads["b2"] = dh.sum(axis=0)
+        dh1 = (dh @ self.p["W2"].T) * (1 - h1**2)
+        grads["W1"] = X.T @ dh1
+        grads["b1"] = dh1.sum(axis=0)
         self.adam(grads)
         self.updates += 1
         return float((adv**2).mean())
@@ -123,20 +137,20 @@ class Policy:
             self.v[k] = b2 * self.v[k] + (1 - b2) * g * g
             mh = self.m[k] / (1 - b1**self.t)
             vh = self.v[k] / (1 - b2**self.t)
-            self.p[k] -= LR * mh / (np.sqrt(vh) + eps)
+            self.p[k] -= LR * (mh / (np.sqrt(vh) + eps) + WEIGHT_DECAY * self.p[k])
 
     def to_json(self):
         d = {k: v.tolist() for k, v in self.p.items()}
         d["version"] = self.updates
         d["obs"] = OBS
+        d["arch"] = ARCH
+        d["logit_max"] = LOGIT_MAX
         return d
 
     def load(self, d):
         for k in self.p:
             if k in d:
                 self.p[k] = np.array(d[k], dtype=np.float64)
-        if self.p["W1"].shape[0] < OBS:
-            self.p["W1"] = np.vstack([self.p["W1"], np.zeros((OBS - self.p["W1"].shape[0], HID))])
         self.updates = int(d.get("version", 0))
         self.m = {k: np.zeros_like(v) for k, v in self.p.items()}
         self.v = {k: np.zeros_like(v) for k, v in self.p.items()}
@@ -164,6 +178,8 @@ def policy_json():
     return {
         "version": total_updates(),
         "obs": OBS,
+        "arch": ARCH,
+        "logit_max": LOGIT_MAX,
         "melee": policies["melee"].to_json(),
         "ranged": policies["ranged"].to_json(),
     }
@@ -355,10 +371,15 @@ def load_state():
         if os.path.exists(path):
             with open(path) as f:
                 d = json.load(f)
-            if d.get("obs") in (OBS, OBS_LEGACY):
+            if d.get("obs") == OBS and d.get("arch") == ARCH:
                 policies[name].load(d)
             else:
-                print(f"[boot] {path} has obs={d.get('obs')}, current build wants {OBS}; starting {name} fresh", flush=True)
+                stale = os.path.join(DATA, "backup-" + str(d.get("arch") or "relu1") + "-obs" + str(d.get("obs")))
+                os.makedirs(stale, exist_ok=True)
+                os.replace(path, os.path.join(stale, os.path.basename(path)))
+                print(f"[boot] {path} is obs={d.get('obs')} arch={d.get('arch')}, this build wants obs={OBS} arch={ARCH}; moved it to {stale} and starting {name} fresh", flush=True)
+                if os.path.exists(TR_FILE):
+                    os.replace(TR_FILE, os.path.join(stale, "transitions.jsonl"))
     if os.path.exists(TR_FILE):
         with open(TR_FILE) as f:
             for line in f:
