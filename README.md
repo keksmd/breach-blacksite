@@ -5,7 +5,7 @@
 Fork of `alesha-pro/bench-portal @ 2fa5c82` → `games/breach-blacksite-astra`.
 
 Static Three.js horde-survival FPS. No build step: `index.html` + prebuilt bundle in `assets/`.
-Upstream ships only build output, so tuning happens directly in `assets/index-9288abe6.js`
+Upstream ships only build output, so tuning happens directly in `assets/index-564ef3cd.js`
 (game logic lives in the tail of the file) and in `assets/index-49044fd1.css` / `index.html`
 (both unminified-friendly).
 
@@ -133,11 +133,13 @@ remains outside the net is physics and rules: line of sight, the reaction delay 
 first shot, the 36 m fire range, magazine and reload, gravity and hops over knee-high
 boxes.
 
-A round ends when one side has nobody left. You respawn at an ALPHA spawn while any ALPHA
-bot is alive; once the last one falls, your death ends the round. Five seconds later the
-next round starts with fresh teams. HUD shows `ALPHA n · m BRAVO` and the round number.
-Bot-on-bot kills do not score or drop pickups; only your own kills do. Team mode does
-not touch the survival save.
+A round ends when one side has nobody left or the 240 s clock runs out. Dead is dead: when
+you go down you drop to the floor, lose movement, fire, aim and reload, and watch the rest
+of the round (the HUD switches to `DOWN · ALPHA n · m BRAVO`). Five seconds after the round
+ends the next one starts with fresh teams and you back on your feet. The kill feed reads
+`ALPHA DOWN` / `BRAVO DOWN` for every kill; survival scoring text does not appear in team
+modes. Bot-on-bot kills do not score or drop pickups; only your own kills do. Team mode
+does not touch the survival save.
 
 ## Zone control (local only)
 
@@ -146,8 +148,10 @@ objective: a 7 m circle at x -3 z -1 in the middle of the yard (translucent cyli
 rings; on the minimap a dashed circle in the colour of whoever leads). Each team has its own
 percentage. While at least one member of a team stands inside, that team's counter climbs
 at 100 % per 60 s; if both teams are inside, both climb. The first to 100 % takes the
-round. Nobody stays dead: bots redeploy at their own spawn 5 s after dying, and so do you
-(the HUD counts down `REDEPLOY IN 5s`). The zone sits 38 m of walking from either spawn
+round. Nobody stays dead: bots redeploy at their own spawn 5 s after dying, and so do you.
+Those 5 s you are out of the game: on the floor, no movement, no fire, no aim, HUD counting
+`REDEPLOY IN 5s`, and you cannot hold the zone while down. The zone sits 38 m of walking
+from either spawn
 (the centre was swept for equal path length once BRAVO moved into the gut), so the first
 contact is at the ring, not in a corridor, and a respawned bot needs a real walk back. RL bots
 earn +0.05 per decision while inside the circle on top of the usual hit / damage rewards.

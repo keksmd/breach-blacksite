@@ -26441,7 +26441,7 @@ function Gv(i, t, e, credit = !0) {
   hi += r;
   const s = document.createElement("div");
   for (
-    s.textContent = credit ? `${t ? "HEADSHOT" : "HOSTILE DOWN"}  +${r}${yr > 1 ? "  /  " + yr + "× CHAIN" : ""}` : `${TM_NAMES[i.team]} DOWN`,
+    s.textContent = TM.on ? `${TM_NAMES[i.team]} DOWN${credit && t ? "  /  HEADSHOT" : ""}` : `${t ? "HEADSHOT" : "HOSTILE DOWN"}  +${r}${yr > 1 ? "  /  " + yr + "× CHAIN" : ""}`,
       Et("killfeed").prepend(s);
     Et("killfeed").children.length > 5;
   )
@@ -26487,14 +26487,16 @@ function Wv(i, t) {
   ((o.rotation.x = Math.PI / 2), (o.position.y = -0.2), n.add(o), Se.add(n), yi.push({ group: n, type: t, life: 22 }));
 }
 function Xh(i) {
-  de === "playing" &&
-    ((k.health = Math.max(0, k.health - i)),
-    (k.lastHurt = sn),
-    (kn = Math.min(1, kn + 0.55)),
-    (In += 0.02),
-    Ue.hurt(i),
-    Xn(),
-    k.health <= 0 && (TM.on ? (TM.mode === "zone" ? ((TM.pRespawn = ZONE_RESPAWN), _c("KIA", "REDEPLOY IN 5s", 4.5)) : tmAlive(0) > 0 && tmRespawn()) : Xv()));
+  if (de !== "playing" || k.health <= 0) return;
+  ((k.health = Math.max(0, k.health - i)), (k.lastHurt = sn), (kn = Math.min(1, kn + 0.55)), (In += 0.02), Ue.hurt(i), Xn());
+  k.health <= 0 && (TM.on ? tmPlayerDown() : Xv());
+}
+function pDown() {
+  return TM.on && k.health <= 0;
+}
+function tmPlayerDown() {
+  ((bi = Ei = !1), Fe.clear(), (Ce = 0), (kn = 1));
+  TM.mode === "zone" ? ((TM.pRespawn = ZONE_RESPAWN), _c("DOWN", `REDEPLOY IN ${ZONE_RESPAWN}s`, ZONE_RESPAWN)) : _c("DOWN", "OUT UNTIL NEXT ROUND", 4);
 }
 function vc() {
   if (hi > Pr) {
@@ -26528,9 +26530,13 @@ function Xn() {
     (Et("hostiles").textContent = TM.on
       ? TM.next > 0
         ? "NEXT ROUND IN " + Math.ceil(TM.next) + "s"
-        : TM.mode === "zone"
-          ? `${TM_NAMES[0]} ${Math.floor(TM.cap[0])}% · ${Math.floor(TM.cap[1])}% ${TM_NAMES[1]}`
-          : `${TM_NAMES[0]} ${tmAlive(0)} · ${tmAlive(1)} ${TM_NAMES[1]}`
+        : pDown() && !TM.auto
+          ? TM.mode === "zone"
+            ? "REDEPLOY IN " + Math.ceil(TM.pRespawn) + "s"
+            : `DOWN · ${TM_NAMES[0]} ${tmAlive(0)} · ${tmAlive(1)} ${TM_NAMES[1]}`
+          : TM.mode === "zone"
+            ? `${TM_NAMES[0]} ${Math.floor(TM.cap[0])}% · ${Math.floor(TM.cap[1])}% ${TM_NAMES[1]}`
+            : `${TM_NAMES[0]} ${tmAlive(0)} · ${tmAlive(1)} ${TM_NAMES[1]}`
       : Mi > 0
         ? "NEXT WAVE IN " + Math.ceil(Mi) + "s"
         : `${Math.max(0, ms - Fa)} HOSTILES REMAINING`),
@@ -26688,7 +26694,7 @@ document.addEventListener("mousemove", (i) => {
   ((k.yaw -= i.movementX * t), (k.pitch = rn(k.pitch - i.movementY * t, -1.42, 1.42)));
 });
 document.addEventListener("mousedown", (i) => {
-  de !== "playing" || (!ci && !Yn) || (i.button === 0 && ((bi = !0), (Xr = !1)), i.button === 2 && (Ei = adsToggleMode ? !Ei : !0));
+  de !== "playing" || pDown() || (!ci && !Yn) || (i.button === 0 && ((bi = !0), (Xr = !1)), i.button === 2 && (Ei = adsToggleMode ? !Ei : !0));
 });
 document.addEventListener("mouseup", (i) => {
   (i.button === 0 && ((bi = !1), (Xr = !1)), i.button === 2 && !adsToggleMode && (Ei = !1));
@@ -26700,6 +26706,7 @@ document.addEventListener("keydown", (i) => {
     return;
   }
   de !== "playing" ||
+    pDown() ||
     (!ci && !Yn) ||
     ([
       "ArrowLeft",
@@ -26752,6 +26759,11 @@ function Mc(i) {
   });
 }
 function Yv(i) {
+  if (pDown()) {
+    ((k.vel.x = k.vel.z = 0), (bi = Ei = !1), (kn = Math.max(kn, 0.55)), Qt.position.copy(k.pos), (Qt.position.y = k.pos.y - k.height + 0.45));
+    Qt.rotation.set(k.pitch, k.yaw, 0.5, "YXZ");
+    return;
+  }
   (Fe.has("ArrowLeft") && (k.yaw += i * 1.9),
     Fe.has("ArrowRight") && (k.yaw -= i * 1.9),
     Fe.has("ArrowUp") && (k.pitch = rn(k.pitch + i * 1.2, -1.42, 1.42)),
@@ -27168,14 +27180,14 @@ function tmRound() {
     }
   }
   const ps = tmSpawnPoint(0);
-  (k.pos.set(ps[0], 1.7, ps[1]), k.vel.set(0, 0, 0), (k.yaw = Math.PI / 2), (k.health = TM.auto ? 0 : 100), (k.lastHurt = -10));
+  (k.pos.set(ps[0], 1.7, ps[1]), k.vel.set(0, 0, 0), (k.yaw = Math.PI / 2), (k.pitch = 0), (k.health = TM.auto ? 0 : 100), (k.lastHurt = -10), (TM.pRespawn = 0));
   (_c(`ROUND ${String(TM.round).padStart(2, "0")}`, TM.mode === "zone" ? "HOLD THE ZONE" : `${TM_NAMES[0]} ${TM.wins[0]} : ${TM.wins[1]} ${TM_NAMES[1]}`, 3), Ue.wave(), Xn());
 }
 function tmRespawn() {
   if (TM.auto) return;
   const p = tmSpawnPoint(0);
-  (k.pos.set(p[0], 1.7, p[1]), k.vel.set(0, 0, 0), (k.yaw = Math.PI / 2), (k.health = 100), (k.lastHurt = -10), TM.deaths++, (kn = 1));
-  (_c("KIA", "REDEPLOYED AT ALPHA SPAWN", 2.5), Xn());
+  (k.pos.set(p[0], 1.7, p[1]), k.vel.set(0, 0, 0), (k.yaw = Math.PI / 2), (k.pitch = 0), (k.health = 100), (k.lastHurt = -10), TM.deaths++, (kn = 0.4));
+  (_c("REDEPLOYED", `${TM_NAMES[0]} SPAWN`, 2), Xn());
 }
 function tmUpdate(i) {
   if (TM.next > 0) {
@@ -27912,6 +27924,9 @@ window.__BREACH__ = {
   },
   get weapons() {
     return Oe;
+  },
+  hurt(n) {
+    Xh(n);
   },
   shoot(e, target) {
     return botShot(e, e.root.position.clone().add(new D(0.2, 1.3, 0.3)), target.root.position.clone().setY(target.root.position.y + 1.7), Oe[e.weapon].spread, Oe[e.weapon].range);
