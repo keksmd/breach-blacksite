@@ -5,7 +5,7 @@
 Fork of `alesha-pro/bench-portal @ 2fa5c82` → `games/breach-blacksite-astra`.
 
 Static Three.js horde-survival FPS. No build step: `index.html` + prebuilt bundle in `assets/`.
-Upstream ships only build output, so tuning happens directly in `assets/index-5d21b869.js`
+Upstream ships only build output, so tuning happens directly in `assets/index-18e9d5e0.js`
 (game logic lives in the tail of the file) and in `assets/index-49044fd1.css` / `index.html`
 (both unminified-friendly).
 
@@ -107,8 +107,8 @@ out is south). The pair was picked by sweeping the collider map with the bots' o
 line-of-sight test: no point of one spawn sees any point of the other, BRAVO walks about
 20 m out of the gut before ALPHA's spawn comes into view and ALPHA about 55 m before it
 sees BRAVO's. You are on ALPHA with 9 bots, start in that pocket facing west;
-BRAVO fields 10. 3 of every 10 bots per team carry only the knife and run at 6.9 m/s
-(between your walk and sprint); the rest are soldiers with a rifle drawn at random from
+BRAVO fields 10. 3 of every 10 bots per team carry only the knife and move by the same
+walk / sprint rules as everyone else; the rest are soldiers with a rifle drawn at random from
 your own weapon table (MK18, M590, MK14, P226), all driven by the same RL nets as
 survival (knife bots by the melee net). No markers over heads: team colour is on the
 shoulder and neck chevrons, blue = ALPHA, green = BRAVO.
@@ -177,8 +177,14 @@ The observation grew from 36 to 41; `rl_server.py` pads older weights with zero 
 older transitions with zeros, so the survival and deathmatch training carries over
 unchanged (the pre-zone weights are kept in `server/data/backup-obs36/`).
 
-Stats are the same on both sides in team mode. Bots have 100 hp, run at your walking speed
-(5.1 m/s) and shoot with the weapon table's numbers: the same damage, pellet count, angular
+Stats are the same on both sides in team mode. Bots have 100 hp and move by the same
+speed model as you: walk 5.1 m/s, sprint 7.2 m/s (`MOVE_WALK` / `MOVE_SPRINT`, one pair of
+constants for player and bots). You sprint only with Shift + W, so forward or forward
+diagonal; a bot sprints only while its movement vector points within 45 degrees of where
+it faces (`MOVE_SPRINT_DOT = 0.7`), and only while it has no line of sight to its target
+or that target is more than 15 m away. Strafing, backing off, holding an angle or
+fighting inside 15 m is walk speed for both sides; the check sits in the movement code,
+not in the RL net, so the policy cannot learn its way around it. Bots shoot with the weapon table's numbers: the same damage, pellet count, angular
 spread and range as the gun in your hands, headshots x2.5 for everyone (survival's one-shot
 kill on bots is off). All gun damage in team mode, yours and theirs, is scaled by 0.6
 (knife stays 40): MK18 17 per round, MK14 55, P226 22, M590 11 per pellet before the

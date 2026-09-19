@@ -26769,7 +26769,7 @@ function Yv(i) {
     Fe.has("ArrowUp") && (k.pitch = rn(k.pitch + i * 1.2, -1.42, 1.42)),
     Fe.has("ArrowDown") && (k.pitch = rn(k.pitch - i * 1.2, -1.42, 1.42)));
   const t = Fe.has("ShiftLeft") && Fe.has("KeyW") && !Ei && k.stamina > 1 && Ce <= 0 && k.slide <= 0;
-  let e = t ? 8.6 : On > 0.5 ? 3 : 5.1;
+  let e = t ? MOVE_SPRINT : On > 0.5 ? 3 : MOVE_WALK;
   (t ? (k.stamina = Math.max(0, k.stamina - i * 19)) : (k.stamina = Math.min(100, k.stamina + i * 13)),
     (Et("stamina-bar").style.width = k.stamina + "%"));
   const n = new D(
@@ -26979,7 +26979,10 @@ const RANGED_HOLD_MIN = 7.5,
   RANGED_SPREAD = 0.02,
   RANGED_RAY_MAX = 140,
   TM_BOT_HP = 100,
-  TM_BOT_SPEED = 5.1,
+  MOVE_WALK = 5.1,
+  MOVE_SPRINT = 7.2,
+  MOVE_SPRINT_DOT = 0.7,
+  TM_BOT_SPEED = MOVE_WALK,
   TM_BURST_AUTO = 4,
   TM_BURST_SEMI = 2,
   KNIFE_DAMAGE = 40,
@@ -27019,7 +27022,7 @@ const RL_URL = "http://localhost:8790",
   TM_JUMP = 6.1,
   TM_HOP_RATE = 0.7,
   tmMem = [new Map(), new Map()],
-  TM_SPAWNS = [[[30, 28, 2.5, 3]], [[-33, -29, 0.8, 3]]], TM_KNIFE_SHARE = 0.3, TM_KNIFE_SPEED = 6.9, RL_ALIVE_REWARD = 0.02, RL_ALIVE_RAMP = 30, MM_RANGE = 16,
+  TM_SPAWNS = [[[30, 28, 2.5, 3]], [[-33, -29, 0.8, 3]]], TM_KNIFE_SHARE = 0.3, TM_KNIFE_SPEED = MOVE_WALK, RL_ALIVE_REWARD = 0.02, RL_ALIVE_RAMP = 30, MM_RANGE = 16,
   MM_ZONES = [["OPS", 8, -31], ["BAY 03", -22, -28], ["SECTOR 07", 8, -10], ["MAINT", 30, 7], ["POWER", 30, 28], ["WEST LANE", -31, 18], ["YARD", 0, 8], ["LOGISTICS", -17, -8], ["SOUTH LOT", 5, 28]],
   TM_NAMES = ["ALPHA", "BRAVO"],
   TM = { on: !1, auto: !1, mode: "tdm", round: 0, wins: [0, 0], next: 0, deaths: 0, clock: 0, cap: [0, 0], queue: [], pRespawn: 0, hud: 0 },
@@ -27671,7 +27674,9 @@ function Zv(i) {
         ((o = u[0]), (l = u[1]), (m = !1));
       }
     }
-    const f = e.stagger > 0 ? 0.25 : e.speed;
+    const fwd = (o * r + l * s) / (a || 1);
+    e.sprint = TM.on && e.stagger <= 0 && !m && fwd >= MOVE_SPRINT_DOT && (!c || a > RANGED_HOLD_MAX);
+    const f = e.stagger > 0 ? 0.25 : e.sprint ? MOVE_SPRINT : e.speed;
     if (
       (e.hold = m),
       (a > 1.45 && !m && (tmBotHop(e, n, o, l), slideMove(n, (o + h) * f * i, (l + u) * f * i, e.heavy ? 0.45 : 0.35, ...Jv(n, o, l, TM.on ? tmFields[e.team] : ii), n.y), (e.phase += i * f * 2.7)),
@@ -27680,7 +27685,7 @@ function Zv(i) {
         e.knockback.multiplyScalar(Math.exp(-i * 4.5))),
       (e.root.rotation.y = Math.atan2(r, s)),
       (e.lookYaw = 0),
-      Rv(e, i, a > 1.45 && !m, e.attack > 0.65 && a < 1.9, !e.heavy && !e.ranged && a > 7 && e.speed > 3.2 && e.stagger <= 0),
+      Rv(e, i, a > 1.45 && !m, e.attack > 0.65 && a < 1.9, TM.on ? !!e.sprint : !e.heavy && !e.ranged && a > 7 && e.speed > 3.2 && e.stagger <= 0),
       e.rl && RL.ready
         ? rlMelee(e, a, T)
         : a < 1.9 &&
